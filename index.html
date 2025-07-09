@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="theme-color" content="#8a2be2">
     <meta name="mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black">
     <meta name="robots" content="noindex, nofollow">
     
@@ -404,6 +403,18 @@
             margin-bottom: 16px;
             opacity: 0.3;
         }
+
+        /* General Note */
+        .general-note {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 16px;
+            padding: 16px;
+            margin-top: 20px;
+            font-size: 14px;
+            color: var(--text-dim);
+            text-align: center;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
     </style>
 </head>
 <body>
@@ -418,7 +429,7 @@
     <div class="container">
         <!-- Hero Section -->
         <div class="hero">
-            <img src="/oyun-durumum/icon-192.png" alt="BigF Logo" class="avatar" style="width: 80px; height: 80px; padding: 0;">
+            <img src="/oyun-durumum/icon-192.png" alt="BigF Logo" class="avatar">
             <h1 class="username">bigfiggings</h1>
             <p class="subtitle">Oyun Durumu</p>
         </div>
@@ -480,11 +491,15 @@
         // Parse CSV
         function parseCSV(text) {
             const lines = text.split('\n').filter(line => line.trim());
-            console.log('Toplam satır sayısı:', lines.length);
+            console.log('CSV parse: Toplam satır sayısı:', lines.length);
             
             const result = [];
+            let isHeader = true;
+            
             for (let i = 0; i < lines.length; i++) {
-                const line = lines[i];
+                const line = lines[i].trim();
+                if (!line) continue;
+                
                 const values = [];
                 let current = '';
                 let inQuotes = false;
@@ -501,15 +516,20 @@
                 }
                 values.push(current.trim());
                 
+                // Debug
+                console.log(`Satır ${i}:`, values);
+                
                 // Başlık satırını atla
-                if (i === 0 && values[0] === 'Tarih') {
-                    console.log('Başlık satırı atlandı:', values);
+                if (isHeader && values[0] === 'Tarih') {
+                    console.log('Başlık satırı atlandı');
+                    isHeader = false;
                     continue;
                 }
                 
                 result.push(values);
             }
             
+            console.log('Parse edilmiş veri sayısı:', result.length);
             return result;
         }
 
@@ -525,10 +545,11 @@
             
             while (retries < maxRetries) {
                 try {
-                    console.log(`Deneme ${retries + 1}: ${PROXY_URLS[currentProxyIndex]}`);
+                    console.log(`Veri çekme denemesi ${retries + 1}/${maxRetries}`);
+                    console.log(`Kullanılan proxy: ${PROXY_URLS[currentProxyIndex]}`);
                     
                     const controller = new AbortController();
-                    const timeoutId = setTimeout(() => controller.abort(), 5000);
+                    const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 saniye timeout
                     
                     const response = await fetch(PROXY_URLS[currentProxyIndex], {
                         cache: 'no-cache',
@@ -537,13 +558,16 @@
                     
                     clearTimeout(timeoutId);
                     
-                    if (!response.ok) throw new Error('Failed');
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
                     
                     const text = await response.text();
-                    console.log('Ham CSV verisi:', text.substring(0, 200) + '...'); // İlk 200 karakter
+                    console.log('CSV verisi alındı, uzunluk:', text.length);
+                    console.log('İlk 300 karakter:', text.substring(0, 300));
                     
                     const data = parseCSV(text);
-                    console.log('Parse edilmiş veri:', data);
+                    console.log('Parse edildi, toplam kayıt:', data.length);
                     
                     isLoading = false;
                     updateRefreshButton(false);
@@ -552,7 +576,7 @@
                     return data;
                     
                 } catch (error) {
-                    console.error(`Proxy hatası (${currentProxyIndex}):`, error);
+                    console.error(`Proxy hatası:`, error.message);
                     retries++;
                     currentProxyIndex = (currentProxyIndex + 1) % PROXY_URLS.length;
                 }
@@ -585,11 +609,33 @@
         // Get today's data
         function getTodayData(data) {
             const today = getTurkeyTime();
-            const todayStr = today.toISOString().split('T')[0];
+            const todayStr = today.toISOString().split('T')[0]; // YYYY-MM-DD formatında
+            console.log('Bugünün tarihi (ISO):', todayStr);
             
-            return data.filter(row => {
-                return row[0] && row[0].startsWith(todayStr);
+            const todayData = data.filter(row => {
+                if (!row[0] || row[0] === 'Son_Guncelleme' || row[0] === 'Genel_Not') {
+                    return false;
+                }
+                
+                // Tarih karşılaştırması
+                const rowDate = row[0].trim();
+                console.log('Satır tarihi:', rowDate, '| Bugün:', todayStr, '| Eşit mi?', rowDate === todayStr);
+                
+                return rowDate === todayStr;
             });
+            
+            console.log('Bugüne ait kayıt sayısı:', todayData.length);
+            if (todayData.length > 0) {
+                console.log('Bugünkü kayıtlar:', todayData);
+            }
+            
+            return todayData;
+        }
+
+        // Get general note
+        function getGeneralNote(data) {
+            const noteRow = data.find(row => row[0] === 'Genel_Not');
+            return noteRow && noteRow[1] ? noteRow[1] : null;
         }
 
         // Determine status
@@ -634,11 +680,12 @@
         function updateUI(data) {
             const mainContent = document.getElementById('mainContent');
             
-            if (!data) {
+            if (!data || data.length === 0) {
                 mainContent.innerHTML = `
                     <div class="empty-state">
                         <div class="empty-icon">⚠️</div>
                         <p>Veriler yüklenemedi</p>
+                        <p style="font-size: 12px; margin-top: 10px;">Lütfen sayfayı yenileyin</p>
                     </div>
                 `;
                 return;
@@ -647,6 +694,7 @@
             const todayData = getTodayData(data);
             const status = determineStatus(todayData);
             const today = getTurkeyTime();
+            const generalNote = getGeneralNote(data);
 
             let html = `
                 <div class="status-display">
@@ -668,12 +716,15 @@
                     if (durum === 'Kesin') indicatorClass = 'available';
                     else if (durum === 'Belki') indicatorClass = 'maybe';
 
+                    const timeRange = (baslangic || '?') + ' - ' + (bitis || '?');
+                    const displayNote = note || durum;
+
                     html += `
                         <div class="time-pill">
                             <div class="time-indicator ${indicatorClass}"></div>
                             <div class="time-content">
-                                <div class="time-range">${baslangic || '?'} - ${bitis || '?'}</div>
-                                <div class="time-note">${note || durum}</div>
+                                <div class="time-range">${timeRange}</div>
+                                <div class="time-note">${displayNote}</div>
                             </div>
                         </div>
                     `;
@@ -682,32 +733,51 @@
                 html += '</div>';
             }
 
+            // Genel not varsa göster
+            if (generalNote) {
+                html += `<div class="general-note">${generalNote}</div>`;
+            }
+
             mainContent.innerHTML = html;
 
             // Update last update info
             const lastUpdateRow = data.find(row => row[0] === 'Son_Guncelleme');
             const updateInfo = document.getElementById('updateInfo');
             
-            if (lastUpdateRow && lastUpdateRow[1]) {
-                const updateDate = new Date(lastUpdateRow[1]);
-                const now = getTurkeyTime();
-                const diffMinutes = Math.floor((now - updateDate) / 60000);
-                
-                let timeAgo = '';
-                if (diffMinutes < 60) {
-                    timeAgo = `${diffMinutes} dakika önce`;
-                } else if (diffMinutes < 1440) {
-                    timeAgo = `${Math.floor(diffMinutes / 60)} saat önce`;
-                } else {
-                    timeAgo = `${Math.floor(diffMinutes / 1440)} gün önce`;
+            if (lastUpdateRow && lastUpdateRow[2]) { // Tarih C sütununda (index 2)
+                try {
+                    const updateDateStr = lastUpdateRow[2];
+                    console.log('Son güncelleme tarihi:', updateDateStr);
+                    
+                    // Tarihi parse et
+                    const updateDate = new Date(updateDateStr);
+                    const now = getTurkeyTime();
+                    const diffMinutes = Math.floor((now - updateDate) / 60000);
+                    
+                    let timeAgo = '';
+                    if (diffMinutes < 1) {
+                        timeAgo = 'Az önce';
+                    } else if (diffMinutes < 60) {
+                        timeAgo = `${diffMinutes} dakika önce`;
+                    } else if (diffMinutes < 1440) {
+                        timeAgo = `${Math.floor(diffMinutes / 60)} saat önce`;
+                    } else {
+                        timeAgo = `${Math.floor(diffMinutes / 1440)} gün önce`;
+                    }
+                    
+                    updateInfo.textContent = `Son güncelleme: ${timeAgo}`;
+                } catch (e) {
+                    console.error('Tarih parse hatası:', e);
+                    updateInfo.textContent = 'Son güncelleme: -';
                 }
-                
-                updateInfo.textContent = `Son güncelleme: ${timeAgo}`;
+            } else {
+                updateInfo.textContent = 'Son güncelleme: -';
             }
         }
 
         // Refresh data
         async function refreshData() {
+            console.log('=== Veri yenileme başladı ===');
             const data = await fetchData();
             if (data) {
                 updateUI(data);
@@ -720,16 +790,80 @@
             }
         }
 
+        // Test notification function
+        function sendTestNotification() {
+            console.log('sendTestNotification çağrıldı');
+            console.log('Notification desteği:', 'Notification' in window);
+            
+            if (!('Notification' in window)) {
+                console.error('Bu tarayıcı bildirimleri desteklemiyor');
+                alert('Bu tarayıcı bildirimleri desteklemiyor');
+                return;
+            }
+            
+            console.log('Mevcut izin durumu:', Notification.permission);
+            
+            if (Notification.permission === 'granted') {
+                try {
+                    const notification = new Notification('bigfiggings Oyun Durumu 🎮', {
+                        body: 'Bildirimler aktif!',
+                        icon: '/oyun-durumum/icon-192.png',
+                        badge: '/oyun-durumum/icon-192.png',
+                        vibrate: [200, 100, 200]
+                    });
+                    console.log('Bildirim gönderildi');
+                    
+                    notification.onclick = function() {
+                        window.focus();
+                        notification.close();
+                    };
+                } catch (e) {
+                    console.error('Bildirim hatası:', e);
+                    alert('Bildirim gönderilemedi: ' + e.message);
+                }
+            } else if (Notification.permission === 'default') {
+                console.log('İzin isteniyor...');
+                Notification.requestPermission().then(permission => {
+                    console.log('İzin sonucu:', permission);
+                    if (permission === 'granted') {
+                        sendTestNotification();
+                    } else {
+                        console.log('Bildirim izni reddedildi');
+                        alert('Bildirim izni reddedildi. Tarayıcı ayarlarından bildirimleri etkinleştirin.');
+                    }
+                }).catch(err => {
+                    console.error('İzin hatası:', err);
+                    alert('İzin istenemedi: ' + err.message);
+                });
+            } else {
+                console.log('Bildirim izni daha önce reddedilmiş');
+                alert('Bildirimler engellenmiş. Tarayıcı ayarlarından bu site için bildirimleri etkinleştirin.');
+            }
+            
+            return 'Test bildirimi işlemi başlatıldı';
+        }
+        
+        // Global olarak erişilebilir yap
+        window.sendTestNotification = sendTestNotification;
+
         // Initialize
         async function init() {
+            console.log('=== Uygulama başlatılıyor ===');
+            console.log('Türkiye saati:', getTurkeyTime());
+            
             // Check cache first
             const cached = localStorage.getItem('gameData');
             if (cached) {
-                const { data, timestamp } = JSON.parse(cached);
-                const age = Date.now() - timestamp;
-                
-                if (age < 300000) { // 5 minutes
-                    updateUI(data);
+                try {
+                    const { data, timestamp } = JSON.parse(cached);
+                    const age = Date.now() - timestamp;
+                    
+                    if (age < 300000) { // 5 dakika
+                        console.log('Cache kullanılıyor, yaş:', Math.floor(age/1000), 'saniye');
+                        updateUI(data);
+                    }
+                } catch (e) {
+                    console.error('Cache okuma hatası:', e);
                 }
             }
             
@@ -754,46 +888,23 @@
         });
 
         function handleSwipe() {
-            if (touchStartY < touchEndY + 50 && window.scrollY === 0) {
+            if (touchEndY > touchStartY + 50 && window.scrollY === 0) {
                 refreshData();
             }
         }
 
         // Service Worker
         if ('serviceWorker' in navigator) {
-            navigator.serviceWorker.register('/oyun-durumum/sw.js');
+            navigator.serviceWorker.register('/oyun-durumum/sw.js')
+                .then(reg => console.log('Service Worker kayıt edildi'))
+                .catch(err => console.error('Service Worker hatası:', err));
         }
 
-        // Request notification permission
-        if ('Notification' in window && Notification.permission === 'default') {
-            Notification.requestPermission();
-        }
-        
-        // Test bildirimi (global fonksiyon olarak)
-        window.sendTestNotification = function() {
-            if ('Notification' in window) {
-                if (Notification.permission === 'granted') {
-                    new Notification('bigfiggings Oyun Durumu 🎮', {
-                        body: 'Bildirimler aktif!',
-                        icon: '/oyun-durumum/icon-192.png',
-                        badge: '/oyun-durumum/icon-192.png',
-                        vibrate: [200, 100, 200]
-                    });
-                } else if (Notification.permission === 'default') {
-                    Notification.requestPermission().then(permission => {
-                        if (permission === 'granted') {
-                            window.sendTestNotification();
-                        } else {
-                            console.log('Bildirim izni reddedildi');
-                        }
-                    });
-                } else {
-                    console.log('Bildirim izni daha önce reddedilmiş');
-                }
-            } else {
-                console.log('Bu tarayıcı bildirimleri desteklemiyor');
-            }
-        }
+        // Auto refresh every 5 minutes
+        setInterval(() => {
+            console.log('Otomatik yenileme...');
+            refreshData();
+        }, 300000);
     </script>
 </body>
 </html>
