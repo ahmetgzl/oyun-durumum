@@ -26,7 +26,7 @@
       "name": "Bugünkü Durum",
       "short_name": "Bugün",
       "description": "Bugünkü oyun durumunu göster",
-      "url": "/?today=true",
+      "url": "/oyun-durumum/",
       "icons": [{ "src": "/oyun-durumum/icon-192.png", "sizes": "192x192" }]
     }
   ]

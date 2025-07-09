@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="theme-color" content="#8a2be2">
+    <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black">
     <meta name="robots" content="noindex, nofollow">
@@ -479,7 +480,11 @@
         // Parse CSV
         function parseCSV(text) {
             const lines = text.split('\n').filter(line => line.trim());
-            return lines.map(line => {
+            console.log('Toplam satır sayısı:', lines.length);
+            
+            const result = [];
+            for (let i = 0; i < lines.length; i++) {
+                const line = lines[i];
                 const values = [];
                 let current = '';
                 let inQuotes = false;
@@ -496,8 +501,16 @@
                 }
                 values.push(current.trim());
                 
-                return values;
-            });
+                // Başlık satırını atla
+                if (i === 0 && values[0] === 'Tarih') {
+                    console.log('Başlık satırı atlandı:', values);
+                    continue;
+                }
+                
+                result.push(values);
+            }
+            
+            return result;
         }
 
         // Fetch data with retry
@@ -512,15 +525,25 @@
             
             while (retries < maxRetries) {
                 try {
+                    console.log(`Deneme ${retries + 1}: ${PROXY_URLS[currentProxyIndex]}`);
+                    
+                    const controller = new AbortController();
+                    const timeoutId = setTimeout(() => controller.abort(), 5000);
+                    
                     const response = await fetch(PROXY_URLS[currentProxyIndex], {
                         cache: 'no-cache',
-                        signal: AbortSignal.timeout(5000)
+                        signal: controller.signal
                     });
+                    
+                    clearTimeout(timeoutId);
                     
                     if (!response.ok) throw new Error('Failed');
                     
                     const text = await response.text();
+                    console.log('Ham CSV verisi:', text.substring(0, 200) + '...'); // İlk 200 karakter
+                    
                     const data = parseCSV(text);
+                    console.log('Parse edilmiş veri:', data);
                     
                     isLoading = false;
                     updateRefreshButton(false);
@@ -529,6 +552,7 @@
                     return data;
                     
                 } catch (error) {
+                    console.error(`Proxy hatası (${currentProxyIndex}):`, error);
                     retries++;
                     currentProxyIndex = (currentProxyIndex + 1) % PROXY_URLS.length;
                 }
@@ -745,14 +769,29 @@
             Notification.requestPermission();
         }
         
-        // Test bildirimi (opsiyonel)
-        function sendTestNotification() {
-            if (Notification.permission === 'granted') {
-                new Notification('bigfiggings Oyun Durumu', {
-                    body: 'Bildirimler aktif! 🎮',
-                    icon: '/oyun-durumum/icon-192.png',
-                    badge: '/oyun-durumum/icon-192.png'
-                });
+        // Test bildirimi (global fonksiyon olarak)
+        window.sendTestNotification = function() {
+            if ('Notification' in window) {
+                if (Notification.permission === 'granted') {
+                    new Notification('bigfiggings Oyun Durumu 🎮', {
+                        body: 'Bildirimler aktif!',
+                        icon: '/oyun-durumum/icon-192.png',
+                        badge: '/oyun-durumum/icon-192.png',
+                        vibrate: [200, 100, 200]
+                    });
+                } else if (Notification.permission === 'default') {
+                    Notification.requestPermission().then(permission => {
+                        if (permission === 'granted') {
+                            window.sendTestNotification();
+                        } else {
+                            console.log('Bildirim izni reddedildi');
+                        }
+                    });
+                } else {
+                    console.log('Bildirim izni daha önce reddedilmiş');
+                }
+            } else {
+                console.log('Bu tarayıcı bildirimleri desteklemiyor');
             }
         }
     </script>
