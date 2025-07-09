@@ -1,0 +1,33 @@
+{
+  "name": "Oyun Durumum - bigfiggings",
+  "short_name": "Oyun Durumu",
+  "description": "bigfiggings'in oyun müsaitlik durumu",
+  "start_url": "/oyun-durumum/",
+  "display": "standalone",
+  "background_color": "#0f0f0f",
+  "theme_color": "#8a2be2",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/oyun-durumum/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/oyun-durumum/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Bugünkü Durum",
+      "short_name": "Bugün",
+      "description": "Bugünkü oyun durumunu göster",
+      "url": "/?today=true",
+      "icons": [{ "src": "/oyun-durumum/icon-192.png", "sizes": "192x192" }]
+    }
+  ]
+}

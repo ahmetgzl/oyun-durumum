@@ -1,0 +1,760 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#8a2be2">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black">
+    <meta name="robots" content="noindex, nofollow">
+    
+    <title>bigfiggings • Oyun Durumu</title>
+    
+    <link rel="manifest" href="manifest.json">
+    <link rel="icon" type="image/png" sizes="192x192" href="/oyun-durumum/icon-192.png">
+    <link rel="apple-touch-icon" href="/oyun-durumum/icon-192.png">
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        :root {
+            --bg: #000000;
+            --surface: #0a0a0a;
+            --primary: #00ff88;
+            --secondary: #ff0066;
+            --warning: #ffaa00;
+            --text: #ffffff;
+            --text-dim: #888888;
+            --radius: 24px;
+            --glow: 0 0 40px;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            overflow-x: hidden;
+            min-height: 100vh;
+            position: relative;
+        }
+
+        /* Animated gradient orbs */
+        .bg-orb {
+            position: fixed;
+            border-radius: 50%;
+            filter: blur(100px);
+            opacity: 0.5;
+            animation: float 20s infinite ease-in-out;
+            pointer-events: none;
+        }
+
+        .orb1 {
+            width: 300px;
+            height: 300px;
+            background: var(--primary);
+            top: -150px;
+            left: -150px;
+        }
+
+        .orb2 {
+            width: 400px;
+            height: 400px;
+            background: var(--secondary);
+            bottom: -200px;
+            right: -200px;
+            animation-delay: -10s;
+        }
+
+        @keyframes float {
+            0%, 100% { transform: translate(0, 0) scale(1); }
+            33% { transform: translate(100px, -50px) scale(1.1); }
+            66% { transform: translate(-50px, 100px) scale(0.9); }
+        }
+
+        /* Container */
+        .container {
+            max-width: 400px;
+            margin: 0 auto;
+            padding: 20px;
+            position: relative;
+            z-index: 1;
+        }
+
+        /* Hero Section */
+        .hero {
+            text-align: center;
+            margin: 40px 0;
+        }
+
+        .avatar {
+            width: 80px;
+            height: 80px;
+            background: #000;
+            border-radius: 50%;
+            margin: 0 auto 20px;
+            display: block;
+            position: relative;
+            animation: glow-pulse 3s infinite;
+            object-fit: cover;
+        }
+
+        @keyframes glow-pulse {
+            0%, 100% { box-shadow: var(--glow) rgba(0, 255, 136, 0.5); }
+            50% { box-shadow: var(--glow) rgba(255, 0, 102, 0.5); }
+        }
+
+        .username {
+            font-size: 24px;
+            font-weight: 700;
+            margin-bottom: 8px;
+            background: linear-gradient(90deg, var(--primary), var(--secondary));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .subtitle {
+            color: var(--text-dim);
+            font-size: 14px;
+        }
+
+        /* Status Card */
+        .status-card {
+            background: var(--surface);
+            border-radius: var(--radius);
+            padding: 30px;
+            margin: 20px 0;
+            position: relative;
+            overflow: hidden;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .status-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: linear-gradient(90deg, var(--primary), var(--secondary));
+            animation: shimmer 2s infinite;
+        }
+
+        @keyframes shimmer {
+            0% { transform: translateX(-100%); }
+            100% { transform: translateX(100%); }
+        }
+
+        /* Status Display */
+        .status-display {
+            text-align: center;
+            margin: 20px 0;
+        }
+
+        .status-icon {
+            width: 120px;
+            height: 120px;
+            margin: 0 auto 20px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 60px;
+            position: relative;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .status-icon.online {
+            background: rgba(0, 255, 136, 0.1);
+            border: 2px solid var(--primary);
+            animation: pulse-online 2s infinite;
+        }
+
+        .status-icon.maybe {
+            background: rgba(255, 170, 0, 0.1);
+            border: 2px solid var(--warning);
+            animation: pulse-maybe 2s infinite;
+        }
+
+        .status-icon.offline {
+            background: rgba(255, 0, 102, 0.1);
+            border: 2px solid var(--secondary);
+            animation: pulse-offline 2s infinite;
+        }
+
+        @keyframes pulse-online {
+            0%, 100% { box-shadow: 0 0 0 0 rgba(0, 255, 136, 0.7); }
+            50% { box-shadow: 0 0 0 20px rgba(0, 255, 136, 0); }
+        }
+
+        @keyframes pulse-maybe {
+            0%, 100% { box-shadow: 0 0 0 0 rgba(255, 170, 0, 0.7); }
+            50% { box-shadow: 0 0 0 20px rgba(255, 170, 0, 0); }
+        }
+
+        @keyframes pulse-offline {
+            0%, 100% { box-shadow: 0 0 0 0 rgba(255, 0, 102, 0.7); }
+            50% { box-shadow: 0 0 0 20px rgba(255, 0, 102, 0); }
+        }
+
+        .status-text {
+            font-size: 28px;
+            font-weight: 700;
+            margin-bottom: 8px;
+        }
+
+        .status-date {
+            color: var(--text-dim);
+            font-size: 14px;
+        }
+
+        /* Time Pills */
+        .time-pills {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            margin: 20px 0;
+        }
+
+        .time-pill {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 16px;
+            padding: 16px;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            transition: all 0.2s;
+            cursor: pointer;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .time-pill:active {
+            transform: scale(0.98);
+        }
+
+        .time-pill::after {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 0;
+            height: 0;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.1);
+            transform: translate(-50%, -50%);
+            transition: width 0.6s, height 0.6s;
+        }
+
+        .time-pill:active::after {
+            width: 300px;
+            height: 300px;
+        }
+
+        .time-indicator {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+
+        .time-indicator.available {
+            background: var(--primary);
+            box-shadow: 0 0 20px rgba(0, 255, 136, 0.6);
+        }
+
+        .time-indicator.maybe {
+            background: var(--warning);
+            box-shadow: 0 0 20px rgba(255, 170, 0, 0.6);
+        }
+
+        .time-indicator.unavailable {
+            background: var(--secondary);
+            box-shadow: 0 0 20px rgba(255, 0, 102, 0.6);
+        }
+
+        .time-content {
+            flex: 1;
+        }
+
+        .time-range {
+            font-weight: 600;
+            font-size: 16px;
+            margin-bottom: 4px;
+        }
+
+        .time-note {
+            color: var(--text-dim);
+            font-size: 14px;
+        }
+
+        /* Loading State */
+        .loading-container {
+            text-align: center;
+            padding: 60px 20px;
+        }
+
+        .loading-dots {
+            display: flex;
+            justify-content: center;
+            gap: 8px;
+            margin-bottom: 20px;
+        }
+
+        .dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: var(--primary);
+            animation: bounce 1.4s infinite ease-in-out;
+        }
+
+        .dot:nth-child(1) { animation-delay: -0.32s; }
+        .dot:nth-child(2) { animation-delay: -0.16s; }
+
+        @keyframes bounce {
+            0%, 80%, 100% {
+                transform: scale(0);
+                opacity: 0.5;
+            }
+            40% {
+                transform: scale(1);
+                opacity: 1;
+            }
+        }
+
+        /* Refresh Button */
+        .refresh-fab {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            width: 60px;
+            height: 60px;
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            border-radius: 50%;
+            border: none;
+            color: var(--bg);
+            font-size: 24px;
+            cursor: pointer;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+            transition: all 0.3s;
+            z-index: 100;
+        }
+
+        .refresh-fab:active {
+            transform: scale(0.9);
+        }
+
+        .refresh-fab:disabled {
+            opacity: 0.5;
+        }
+
+        .refresh-fab.spinning {
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* Update Info */
+        .update-info {
+            text-align: center;
+            padding: 20px;
+            color: var(--text-dim);
+            font-size: 12px;
+        }
+
+        /* Notification Badge */
+        .notification-badge {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: var(--secondary);
+            color: white;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: 600;
+            transform: translateY(-100px);
+            transition: transform 0.3s;
+            z-index: 200;
+        }
+
+        .notification-badge.show {
+            transform: translateY(0);
+        }
+
+        /* Empty State */
+        .empty-state {
+            text-align: center;
+            padding: 40px;
+            color: var(--text-dim);
+        }
+
+        .empty-icon {
+            font-size: 64px;
+            margin-bottom: 16px;
+            opacity: 0.3;
+        }
+    </style>
+</head>
+<body>
+    <!-- Background Orbs -->
+    <div class="bg-orb orb1"></div>
+    <div class="bg-orb orb2"></div>
+
+    <!-- Notification Badge -->
+    <div class="notification-badge" id="notificationBadge"></div>
+
+    <!-- Main Container -->
+    <div class="container">
+        <!-- Hero Section -->
+        <div class="hero">
+            <img src="/oyun-durumum/icon-192.png" alt="BigF Logo" class="avatar" style="width: 80px; height: 80px; padding: 0;">
+            <h1 class="username">bigfiggings</h1>
+            <p class="subtitle">Oyun Durumu</p>
+        </div>
+
+        <!-- Status Card -->
+        <div class="status-card">
+            <div id="mainContent">
+                <div class="loading-container">
+                    <div class="loading-dots">
+                        <div class="dot"></div>
+                        <div class="dot"></div>
+                        <div class="dot"></div>
+                    </div>
+                    <p>Yükleniyor...</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Update Info -->
+        <div class="update-info" id="updateInfo">
+            Son güncelleme: -
+        </div>
+    </div>
+
+    <!-- Refresh FAB -->
+    <button class="refresh-fab" id="refreshBtn" onclick="refreshData()">
+        ↻
+    </button>
+
+    <script>
+        // Configuration
+        const SHEET_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vR5OHN2UyMSoocU44cC_thnQvUUMod--0RyOhuV8kh3EWVv6vYS7Y0LgMmVlY1r9tNqVDp_VVHdtGfl/pub?gid=0&single=true&output=csv";
+        
+        const PROXY_URLS = [
+            `https://api.allorigins.win/raw?url=${encodeURIComponent(SHEET_URL)}`,
+            `https://corsproxy.io/?${encodeURIComponent(SHEET_URL)}`,
+            `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(SHEET_URL)}`
+        ];
+
+        let currentProxyIndex = 0;
+        let isLoading = false;
+
+        // Get Turkey time (UTC+3)
+        function getTurkeyTime() {
+            const now = new Date();
+            const utcTime = now.getTime() + (now.getTimezoneOffset() * 60000);
+            const turkeyTime = new Date(utcTime + (3 * 60 * 60 * 1000));
+            return turkeyTime;
+        }
+
+        // Format date
+        function formatDate(date) {
+            const days = ['Pazar', 'Pazartesi', 'Salı', 'Çarşamba', 'Perşembe', 'Cuma', 'Cumartesi'];
+            const months = ['Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran', 'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık'];
+            
+            return `${days[date.getDay()]}, ${date.getDate()} ${months[date.getMonth()]} ${date.getFullYear()}`;
+        }
+
+        // Parse CSV
+        function parseCSV(text) {
+            const lines = text.split('\n').filter(line => line.trim());
+            return lines.map(line => {
+                const values = [];
+                let current = '';
+                let inQuotes = false;
+                
+                for (let char of line) {
+                    if (char === '"') {
+                        inQuotes = !inQuotes;
+                    } else if (char === ',' && !inQuotes) {
+                        values.push(current.trim());
+                        current = '';
+                    } else {
+                        current += char;
+                    }
+                }
+                values.push(current.trim());
+                
+                return values;
+            });
+        }
+
+        // Fetch data with retry
+        async function fetchData() {
+            if (isLoading) return null;
+            
+            isLoading = true;
+            updateRefreshButton(true);
+            
+            let retries = 0;
+            const maxRetries = PROXY_URLS.length;
+            
+            while (retries < maxRetries) {
+                try {
+                    const response = await fetch(PROXY_URLS[currentProxyIndex], {
+                        cache: 'no-cache',
+                        signal: AbortSignal.timeout(5000)
+                    });
+                    
+                    if (!response.ok) throw new Error('Failed');
+                    
+                    const text = await response.text();
+                    const data = parseCSV(text);
+                    
+                    isLoading = false;
+                    updateRefreshButton(false);
+                    showNotification('✓ Güncellendi');
+                    
+                    return data;
+                    
+                } catch (error) {
+                    retries++;
+                    currentProxyIndex = (currentProxyIndex + 1) % PROXY_URLS.length;
+                }
+            }
+            
+            isLoading = false;
+            updateRefreshButton(false);
+            showNotification('✗ Bağlantı hatası');
+            return null;
+        }
+
+        // Update refresh button
+        function updateRefreshButton(loading) {
+            const btn = document.getElementById('refreshBtn');
+            btn.disabled = loading;
+            btn.classList.toggle('spinning', loading);
+        }
+
+        // Show notification
+        function showNotification(message) {
+            const badge = document.getElementById('notificationBadge');
+            badge.textContent = message;
+            badge.classList.add('show');
+            
+            setTimeout(() => {
+                badge.classList.remove('show');
+            }, 3000);
+        }
+
+        // Get today's data
+        function getTodayData(data) {
+            const today = getTurkeyTime();
+            const todayStr = today.toISOString().split('T')[0];
+            
+            return data.filter(row => {
+                return row[0] && row[0].startsWith(todayStr);
+            });
+        }
+
+        // Determine status
+        function determineStatus(todayData) {
+            if (!todayData || todayData.length === 0) {
+                return {
+                    icon: '📅',
+                    text: 'Bugün için bilgi yok',
+                    type: 'offline',
+                    color: 'var(--secondary)'
+                };
+            }
+
+            const hasOnline = todayData.some(row => row[1] === 'Kesin');
+            const hasMaybe = todayData.some(row => row[1] === 'Belki');
+
+            if (hasOnline) {
+                return {
+                    icon: '🎮',
+                    text: 'Oyundayım!',
+                    type: 'online',
+                    color: 'var(--primary)'
+                };
+            } else if (hasMaybe) {
+                return {
+                    icon: '⚡',
+                    text: 'Belki gelirim',
+                    type: 'maybe',
+                    color: 'var(--warning)'
+                };
+            } else {
+                return {
+                    icon: '💤',
+                    text: 'Bugün yokum',
+                    type: 'offline',
+                    color: 'var(--secondary)'
+                };
+            }
+        }
+
+        // Update UI
+        function updateUI(data) {
+            const mainContent = document.getElementById('mainContent');
+            
+            if (!data) {
+                mainContent.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-icon">⚠️</div>
+                        <p>Veriler yüklenemedi</p>
+                    </div>
+                `;
+                return;
+            }
+
+            const todayData = getTodayData(data);
+            const status = determineStatus(todayData);
+            const today = getTurkeyTime();
+
+            let html = `
+                <div class="status-display">
+                    <div class="status-icon ${status.type}">
+                        ${status.icon}
+                    </div>
+                    <h2 class="status-text" style="color: ${status.color}">${status.text}</h2>
+                    <p class="status-date">${formatDate(today)}</p>
+                </div>
+            `;
+
+            if (todayData.length > 0) {
+                html += '<div class="time-pills">';
+                
+                todayData.forEach(row => {
+                    const [date, durum, baslangic, bitis, note] = row;
+                    
+                    let indicatorClass = 'unavailable';
+                    if (durum === 'Kesin') indicatorClass = 'available';
+                    else if (durum === 'Belki') indicatorClass = 'maybe';
+
+                    html += `
+                        <div class="time-pill">
+                            <div class="time-indicator ${indicatorClass}"></div>
+                            <div class="time-content">
+                                <div class="time-range">${baslangic || '?'} - ${bitis || '?'}</div>
+                                <div class="time-note">${note || durum}</div>
+                            </div>
+                        </div>
+                    `;
+                });
+                
+                html += '</div>';
+            }
+
+            mainContent.innerHTML = html;
+
+            // Update last update info
+            const lastUpdateRow = data.find(row => row[0] === 'Son_Guncelleme');
+            const updateInfo = document.getElementById('updateInfo');
+            
+            if (lastUpdateRow && lastUpdateRow[1]) {
+                const updateDate = new Date(lastUpdateRow[1]);
+                const now = getTurkeyTime();
+                const diffMinutes = Math.floor((now - updateDate) / 60000);
+                
+                let timeAgo = '';
+                if (diffMinutes < 60) {
+                    timeAgo = `${diffMinutes} dakika önce`;
+                } else if (diffMinutes < 1440) {
+                    timeAgo = `${Math.floor(diffMinutes / 60)} saat önce`;
+                } else {
+                    timeAgo = `${Math.floor(diffMinutes / 1440)} gün önce`;
+                }
+                
+                updateInfo.textContent = `Son güncelleme: ${timeAgo}`;
+            }
+        }
+
+        // Refresh data
+        async function refreshData() {
+            const data = await fetchData();
+            if (data) {
+                updateUI(data);
+                
+                // Cache for offline
+                localStorage.setItem('gameData', JSON.stringify({
+                    data: data,
+                    timestamp: Date.now()
+                }));
+            }
+        }
+
+        // Initialize
+        async function init() {
+            // Check cache first
+            const cached = localStorage.getItem('gameData');
+            if (cached) {
+                const { data, timestamp } = JSON.parse(cached);
+                const age = Date.now() - timestamp;
+                
+                if (age < 300000) { // 5 minutes
+                    updateUI(data);
+                }
+            }
+            
+            // Fetch fresh data
+            await refreshData();
+        }
+
+        // Start
+        init();
+
+        // Swipe to refresh
+        let touchStartY = 0;
+        let touchEndY = 0;
+
+        document.addEventListener('touchstart', e => {
+            touchStartY = e.changedTouches[0].screenY;
+        });
+
+        document.addEventListener('touchend', e => {
+            touchEndY = e.changedTouches[0].screenY;
+            handleSwipe();
+        });
+
+        function handleSwipe() {
+            if (touchStartY < touchEndY + 50 && window.scrollY === 0) {
+                refreshData();
+            }
+        }
+
+        // Service Worker
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('/oyun-durumum/sw.js');
+        }
+
+        // Request notification permission
+        if ('Notification' in window && Notification.permission === 'default') {
+            Notification.requestPermission();
+        }
+        
+        // Test bildirimi (opsiyonel)
+        function sendTestNotification() {
+            if (Notification.permission === 'granted') {
+                new Notification('bigfiggings Oyun Durumu', {
+                    body: 'Bildirimler aktif! 🎮',
+                    icon: '/oyun-durumum/icon-192.png',
+                    badge: '/oyun-durumum/icon-192.png'
+                });
+            }
+        }
+    </script>
+</body>
+</html>
