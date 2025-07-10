@@ -9,15 +9,13 @@ const urlsToCache = [
 
 // Install event
 self.addEventListener('install', event => {
-  console.log('[ServiceWorker] Install');
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then(cache => {
-        console.log('[ServiceWorker] Caching app shell');
         return cache.addAll(urlsToCache);
       })
       .catch(err => {
-        console.error('[ServiceWorker] Cache failed:', err);
+        // Cache hatası, sessizce devam et
       })
   );
   // Hemen aktif ol
@@ -26,13 +24,11 @@ self.addEventListener('install', event => {
 
 // Activate event
 self.addEventListener('activate', event => {
-  console.log('[ServiceWorker] Activate');
   event.waitUntil(
     caches.keys().then(cacheNames => {
       return Promise.all(
         cacheNames.map(cacheName => {
           if (cacheName !== CACHE_NAME) {
-            console.log('[ServiceWorker] Removing old cache:', cacheName);
             return caches.delete(cacheName);
           }
         })
@@ -71,36 +67,5 @@ self.addEventListener('fetch', event => {
         // Network başarısızsa cache'den dön
         return caches.match(event.request);
       })
-  );
-});
-
-// Push notification desteği için
-self.addEventListener('push', event => {
-  console.log('[ServiceWorker] Push received');
-  
-  const title = 'bigfiggings Oyun Durumu';
-  const options = {
-    body: event.data ? event.data.text() : 'Yeni güncelleme var!',
-    icon: '/oyun-durumum/icon-192.png',
-    badge: '/oyun-durumum/icon-192.png',
-    vibrate: [200, 100, 200],
-    data: {
-      dateOfArrival: Date.now(),
-      primaryKey: 1
-    }
-  };
-
-  event.waitUntil(
-    self.registration.showNotification(title, options)
-  );
-});
-
-// Notification click
-self.addEventListener('notificationclick', event => {
-  console.log('[ServiceWorker] Notification click');
-  event.notification.close();
-
-  event.waitUntil(
-    clients.openWindow('/oyun-durumum/')
   );
 });
