@@ -213,6 +213,12 @@
             font-size: 14px;
         }
 
+        .current-time {
+            color: var(--text-dim);
+            font-size: 12px;
+            margin-top: 4px;
+        }
+
         /* Time Pills */
         .time-pills {
             display: flex;
@@ -233,6 +239,12 @@
             cursor: pointer;
             position: relative;
             overflow: hidden;
+        }
+
+        .time-pill.active {
+            background: rgba(255, 255, 255, 0.08);
+            border-color: rgba(255, 255, 255, 0.2);
+            box-shadow: 0 0 20px rgba(0, 255, 136, 0.2);
         }
 
         .time-pill:active {
@@ -292,6 +304,43 @@
         .time-note {
             color: var(--text-dim);
             font-size: 14px;
+        }
+
+        /* General Note Section */
+        .general-note-section {
+            margin-top: 30px;
+            padding-top: 30px;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .general-note-title {
+            font-size: 12px;
+            color: var(--text-dim);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 10px;
+            text-align: center;
+        }
+
+        .general-note {
+            background: linear-gradient(135deg, rgba(138, 43, 226, 0.1), rgba(255, 0, 102, 0.1));
+            border-radius: 16px;
+            padding: 20px;
+            font-size: 14px;
+            color: var(--text);
+            text-align: center;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .general-note::before {
+            content: '📌';
+            position: absolute;
+            top: -10px;
+            right: 20px;
+            font-size: 24px;
+            transform: rotate(15deg);
         }
 
         /* Loading State */
@@ -404,16 +453,25 @@
             opacity: 0.3;
         }
 
-        /* General Note */
-        .general-note {
-            background: rgba(255, 255, 255, 0.05);
-            border-radius: 16px;
-            padding: 16px;
-            margin-top: 20px;
-            font-size: 14px;
-            color: var(--text-dim);
-            text-align: center;
-            border: 1px solid rgba(255, 255, 255, 0.1);
+        /* Debug Info */
+        .debug-info {
+            position: fixed;
+            bottom: 100px;
+            left: 20px;
+            background: rgba(0, 0, 0, 0.9);
+            color: #0f0;
+            font-family: monospace;
+            font-size: 10px;
+            padding: 10px;
+            border-radius: 8px;
+            max-width: 250px;
+            display: none;
+            z-index: 1000;
+            border: 1px solid #0f0;
+        }
+
+        .debug-info.show {
+            display: block;
         }
     </style>
 </head>
@@ -424,6 +482,9 @@
 
     <!-- Notification Badge -->
     <div class="notification-badge" id="notificationBadge"></div>
+
+    <!-- Debug Info -->
+    <div class="debug-info" id="debugInfo"></div>
 
     <!-- Main Container -->
     <div class="container">
@@ -469,22 +530,48 @@
             `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(SHEET_URL)}`
         ];
 
-        // Cache ayarları
-        const CACHE_DURATION = 5 * 60 * 1000; // 5 dakika
-        const AUTO_REFRESH_INTERVAL = 5 * 60 * 1000; // 5 dakika
+        // Cache settings
+        const CACHE_DURATION = 2 * 60 * 1000; // 2 dakika
+        const AUTO_REFRESH_INTERVAL = 60 * 1000; // 1 dakika
 
         let currentProxyIndex = 0;
         let isLoading = false;
+        let lastFetchTime = 0;
+        let debugMode = false;
 
-        // Get Turkey time (UTC+3) - Düzeltilmiş versiyon
+        // Debug log
+        function debugLog(message, data = null) {
+            if (debugMode) {
+                console.log(`[DEBUG] ${message}`, data || '');
+                const debugInfo = document.getElementById('debugInfo');
+                debugInfo.innerHTML = `${new Date().toTimeString().slice(0, 8)}<br>${message}`;
+                if (data) {
+                    debugInfo.innerHTML += `<br>${JSON.stringify(data, null, 2)}`;
+                }
+            }
+        }
+
+        // Get Turkey time with correct handling
         function getTurkeyTime() {
             const now = new Date();
-            // Türkiye UTC+3
-            const turkeyOffset = 3 * 60; // dakika cinsinden
-            const localOffset = now.getTimezoneOffset(); // dakika cinsinden
-            const totalOffset = turkeyOffset + localOffset;
             
-            return new Date(now.getTime() + totalOffset * 60 * 1000);
+            // Türkiye her zaman UTC+3
+            const utcTime = now.getTime() + (now.getTimezoneOffset() * 60000);
+            const turkeyTime = new Date(utcTime + (3 * 60 * 60 * 1000));
+            
+            debugLog("Turkey Time", {
+                local: now.toString(),
+                turkey: turkeyTime.toString(),
+                hours: turkeyTime.getHours(),
+                minutes: turkeyTime.getMinutes()
+            });
+            
+            return turkeyTime;
+        }
+
+        // Format time as HH:MM
+        function formatTime(date) {
+            return date.toTimeString().slice(0, 5);
         }
 
         // Format date
@@ -495,8 +582,41 @@
             return `${days[date.getDay()]}, ${date.getDate()} ${months[date.getMonth()]} ${date.getFullYear()}`;
         }
 
+        // Parse time string to minutes
+        function parseTimeToMinutes(timeStr) {
+            if (!timeStr || timeStr === '?') return null;
+            
+            const parts = timeStr.split(':');
+            if (parts.length !== 2) return null;
+            
+            const hours = parseInt(parts[0]);
+            const minutes = parseInt(parts[1]);
+            
+            if (isNaN(hours) || isNaN(minutes)) return null;
+            
+            return hours * 60 + minutes;
+        }
+
+        // Check if current time is in range
+        function isTimeInRange(currentMinutes, startStr, endStr) {
+            const start = parseTimeToMinutes(startStr);
+            const end = parseTimeToMinutes(endStr);
+            
+            if (start === null || end === null) return false;
+            
+            // Handle day crossing (e.g., 22:00 - 02:00)
+            if (end < start) {
+                return currentMinutes >= start || currentMinutes <= end;
+            } else {
+                return currentMinutes >= start && currentMinutes <= end;
+            }
+        }
+
         // Parse CSV
         function parseCSV(text) {
+            // Windows line endings'i düzelt
+            text = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+            
             const lines = text.split('\n').filter(line => line.trim());
             const result = [];
             let isHeader = true;
@@ -521,7 +641,7 @@
                 }
                 values.push(current.trim());
                 
-                // Başlık satırını atla
+                // Skip header
                 if (isHeader && values[0] === 'Tarih') {
                     isHeader = false;
                     continue;
@@ -534,10 +654,18 @@
         }
 
         // Fetch data with retry
-        async function fetchData() {
+        async function fetchData(forceRefresh = false) {
+            // Rate limiting
+            const now = Date.now();
+            if (!forceRefresh && now - lastFetchTime < 10000) {
+                debugLog("Rate limited");
+                return null;
+            }
+            
             if (isLoading) return null;
             
             isLoading = true;
+            lastFetchTime = now;
             updateRefreshButton(true);
             
             let retries = 0;
@@ -545,12 +673,17 @@
             
             while (retries < maxRetries) {
                 try {
+                    debugLog(`Trying proxy ${currentProxyIndex}`);
+                    
                     const controller = new AbortController();
-                    const timeoutId = setTimeout(() => controller.abort(), 10000);
+                    const timeoutId = setTimeout(() => controller.abort(), 15000);
                     
                     const response = await fetch(PROXY_URLS[currentProxyIndex], {
                         cache: 'no-cache',
-                        signal: controller.signal
+                        signal: controller.signal,
+                        headers: {
+                            'Accept': 'text/csv, text/plain, */*'
+                        }
                     });
                     
                     clearTimeout(timeoutId);
@@ -562,6 +695,11 @@
                     const text = await response.text();
                     const data = parseCSV(text);
                     
+                    debugLog("Data fetched successfully", {
+                        rows: data.length,
+                        proxy: currentProxyIndex
+                    });
+                    
                     isLoading = false;
                     updateRefreshButton(false);
                     showNotification('✓ Güncellendi');
@@ -569,6 +707,7 @@
                     return data;
                     
                 } catch (error) {
+                    debugLog(`Proxy ${currentProxyIndex} failed: ${error.message}`);
                     retries++;
                     currentProxyIndex = (currentProxyIndex + 1) % PROXY_URLS.length;
                 }
@@ -601,16 +740,25 @@
         // Get today's data
         function getTodayData(data) {
             const today = getTurkeyTime();
-            const todayStr = today.toISOString().split('T')[0];
+            // Manuel tarih string oluştur - toISOString() UTC'ye çevirdiği için kullanmıyoruz
+            const year = today.getFullYear();
+            const month = (today.getMonth() + 1).toString().padStart(2, '0');
+            const day = today.getDate().toString().padStart(2, '0');
+            const todayStr = `${year}-${month}-${day}`;
+            
+            debugLog("Looking for date", todayStr);
             
             const todayData = data.filter(row => {
                 if (!row[0] || row[0] === 'Son_Guncelleme' || row[0] === 'Genel_Not') {
                     return false;
                 }
                 
-                return row[0].trim() === todayStr;
+                // Trim ve \r karakterlerini temizle
+                const rowDate = row[0].trim().replace(/\r/g, '');
+                return rowDate === todayStr;
             });
             
+            debugLog("Today's data", todayData);
             return todayData;
         }
 
@@ -620,40 +768,104 @@
             return noteRow && noteRow[1] ? noteRow[1] : null;
         }
 
-        // Determine status
-        function determineStatus(todayData) {
+        // Determine current status based on time
+        function determineCurrentStatus(todayData) {
             if (!todayData || todayData.length === 0) {
                 return {
                     icon: '📅',
                     text: 'Bugün için bilgi yok',
                     type: 'offline',
-                    color: 'var(--secondary)'
+                    color: 'var(--secondary)',
+                    activeSlot: null
                 };
             }
 
-            const hasOnline = todayData.some(row => row[1] === 'Kesin');
-            const hasMaybe = todayData.some(row => row[1] === 'Belki');
+            const now = getTurkeyTime();
+            const currentMinutes = now.getHours() * 60 + now.getMinutes();
+            
+            debugLog("Current time check", {
+                time: formatTime(now),
+                minutes: currentMinutes
+            });
 
-            if (hasOnline) {
+            // Check each time slot
+            let activeSlot = null;
+            let hasOnlineToday = false;
+            let hasMaybeToday = false;
+
+            for (let i = 0; i < todayData.length; i++) {
+                const row = todayData[i];
+                const [date, durum, baslangic, bitis] = row;
+                
+                if (durum === 'Kesin') hasOnlineToday = true;
+                if (durum === 'Belki') hasMaybeToday = true;
+                
+                if (isTimeInRange(currentMinutes, baslangic, bitis)) {
+                    activeSlot = i;
+                    debugLog("Active slot found", {
+                        slot: i,
+                        status: durum,
+                        range: `${baslangic} - ${bitis}`
+                    });
+                }
+            }
+
+            // If we're in an active time slot
+            if (activeSlot !== null) {
+                const activeRow = todayData[activeSlot];
+                const status = activeRow[1];
+                
+                if (status === 'Kesin') {
+                    return {
+                        icon: '🎮',
+                        text: 'Şu an oyundayım!',
+                        type: 'online',
+                        color: 'var(--primary)',
+                        activeSlot: activeSlot
+                    };
+                } else if (status === 'Belki') {
+                    return {
+                        icon: '⚡',
+                        text: 'Belki oyundayım',
+                        type: 'maybe',
+                        color: 'var(--warning)',
+                        activeSlot: activeSlot
+                    };
+                } else {
+                    return {
+                        icon: '💤',
+                        text: 'Şu an yokum',
+                        type: 'offline',
+                        color: 'var(--secondary)',
+                        activeSlot: activeSlot
+                    };
+                }
+            }
+
+            // Not in any time slot - show general status for today
+            if (hasOnlineToday) {
                 return {
-                    icon: '🎮',
-                    text: 'Oyundayım!',
-                    type: 'online',
-                    color: 'var(--primary)'
-                };
-            } else if (hasMaybe) {
-                return {
-                    icon: '⚡',
-                    text: 'Belki gelirim',
+                    icon: '📅',
+                    text: 'Bugün oynayacağım',
                     type: 'maybe',
-                    color: 'var(--warning)'
+                    color: 'var(--warning)',
+                    activeSlot: null
+                };
+            } else if (hasMaybeToday) {
+                return {
+                    icon: '🤔',
+                    text: 'Bugün belki gelirim',
+                    type: 'maybe',
+                    color: 'var(--warning)',
+                    activeSlot: null
                 };
             } else {
                 return {
                     icon: '💤',
                     text: 'Bugün yokum',
                     type: 'offline',
-                    color: 'var(--secondary)'
+                    color: 'var(--secondary)',
+                    activeSlot: null
                 };
             }
         }
@@ -674,7 +886,7 @@
             }
 
             const todayData = getTodayData(data);
-            const status = determineStatus(todayData);
+            const status = determineCurrentStatus(todayData);
             const today = getTurkeyTime();
             const generalNote = getGeneralNote(data);
 
@@ -685,13 +897,14 @@
                     </div>
                     <h2 class="status-text" style="color: ${status.color}">${status.text}</h2>
                     <p class="status-date">${formatDate(today)}</p>
+                    <p class="current-time">Saat: ${formatTime(today)}</p>
                 </div>
             `;
 
             if (todayData.length > 0) {
                 html += '<div class="time-pills">';
                 
-                todayData.forEach(row => {
+                todayData.forEach((row, index) => {
                     const [date, durum, baslangic, bitis, note] = row;
                     
                     let indicatorClass = 'unavailable';
@@ -700,9 +913,11 @@
 
                     const timeRange = (baslangic || '?') + ' - ' + (bitis || '?');
                     const displayNote = note || durum;
+                    
+                    const isActive = index === status.activeSlot;
 
                     html += `
-                        <div class="time-pill">
+                        <div class="time-pill ${isActive ? 'active' : ''}">
                             <div class="time-indicator ${indicatorClass}"></div>
                             <div class="time-content">
                                 <div class="time-range">${timeRange}</div>
@@ -715,9 +930,14 @@
                 html += '</div>';
             }
 
-            // Genel not varsa göster
+            // General note - separated section
             if (generalNote) {
-                html += `<div class="general-note">${generalNote}</div>`;
+                html += `
+                    <div class="general-note-section">
+                        <div class="general-note-title">Genel Not</div>
+                        <div class="general-note">${generalNote}</div>
+                    </div>
+                `;
             }
 
             mainContent.innerHTML = html;
@@ -728,8 +948,28 @@
             
             if (lastUpdateRow && lastUpdateRow[1]) {
                 try {
-                    const updateDateStr = lastUpdateRow[1];
-                    const updateDate = new Date(updateDateStr);
+                    const updateDateStr = lastUpdateRow[1].trim();
+                    debugLog("Update date string", updateDateStr);
+                    
+                    // Parse different date formats
+                    let updateDate;
+                    
+                    if (updateDateStr.includes('T')) {
+                        // ISO format
+                        updateDate = new Date(updateDateStr);
+                    } else if (updateDateStr.includes(' ')) {
+                        // YYYY-MM-DD HH:MM:SS format
+                        const [datePart, timePart] = updateDateStr.split(' ');
+                        const [year, month, day] = datePart.split('-').map(n => parseInt(n));
+                        const [hour, minute, second = 0] = (timePart || '00:00:00').split(':').map(n => parseInt(n) || 0);
+                        
+                        updateDate = new Date(year, month - 1, day, hour, minute, second);
+                    } else {
+                        // Just date
+                        const [year, month, day] = updateDateStr.split('-').map(n => parseInt(n));
+                        updateDate = new Date(year, month - 1, day);
+                    }
+                    
                     const now = getTurkeyTime();
                     const diffMinutes = Math.floor((now - updateDate) / 60000);
                     
@@ -748,6 +988,7 @@
                     
                     updateInfo.textContent = `Son güncelleme: ${timeAgo}`;
                 } catch (e) {
+                    debugLog("Date parse error", e.message);
                     updateInfo.textContent = 'Son güncelleme: -';
                 }
             } else {
@@ -756,42 +997,83 @@
         }
 
         // Refresh data
-        async function refreshData() {
-            const data = await fetchData();
+        async function refreshData(forceRefresh = true) {
+            const data = await fetchData(forceRefresh);
             if (data) {
                 updateUI(data);
                 
                 // Cache for offline
-                localStorage.setItem('gameData', JSON.stringify({
-                    data: data,
-                    timestamp: Date.now()
-                }));
+                try {
+                    localStorage.setItem('gameData', JSON.stringify({
+                        data: data,
+                        timestamp: Date.now()
+                    }));
+                } catch (e) {
+                    debugLog("Cache error", e.message);
+                }
             }
         }
 
         // Initialize
         async function init() {
+            // Enable debug mode with triple tap
+            let tapCount = 0;
+            let tapTimer;
+            
+            document.addEventListener('click', (e) => {
+                if (e.target.closest('.refresh-fab')) return;
+                
+                tapCount++;
+                clearTimeout(tapTimer);
+                
+                if (tapCount === 3) {
+                    debugMode = !debugMode;
+                    document.getElementById('debugInfo').classList.toggle('show', debugMode);
+                    showNotification(debugMode ? 'Debug ON' : 'Debug OFF');
+                    tapCount = 0;
+                } else {
+                    tapTimer = setTimeout(() => tapCount = 0, 500);
+                }
+            });
+
             // Check cache first
-            const cached = localStorage.getItem('gameData');
-            if (cached) {
-                try {
+            try {
+                const cached = localStorage.getItem('gameData');
+                if (cached) {
                     const { data, timestamp } = JSON.parse(cached);
                     const age = Date.now() - timestamp;
                     
                     if (age < CACHE_DURATION) {
                         updateUI(data);
+                        // Still fetch fresh data in background
+                        setTimeout(() => refreshData(false), 1000);
+                        return;
                     }
-                } catch (e) {
-                    // Cache error, ignore
                 }
+            } catch (e) {
+                debugLog("Cache read error", e.message);
             }
             
             // Fetch fresh data
-            await refreshData();
+            await refreshData(true);
         }
 
         // Start
         init();
+
+        // Auto refresh with smart interval
+        setInterval(() => {
+            debugLog("Auto refresh triggered");
+            refreshData(false);
+        }, AUTO_REFRESH_INTERVAL);
+
+        // Update time display every minute
+        setInterval(() => {
+            const currentTimeEl = document.querySelector('.current-time');
+            if (currentTimeEl) {
+                currentTimeEl.textContent = `Saat: ${formatTime(getTurkeyTime())}`;
+            }
+        }, 60000);
 
         // Swipe to refresh
         let touchStartY = 0;
@@ -808,7 +1090,7 @@
 
         function handleSwipe() {
             if (touchEndY > touchStartY + 50 && window.scrollY === 0) {
-                refreshData();
+                refreshData(true);
             }
         }
 
@@ -816,11 +1098,6 @@
         if ('serviceWorker' in navigator) {
             navigator.serviceWorker.register('/oyun-durumum/sw.js').catch(() => {});
         }
-
-        // Auto refresh
-        setInterval(() => {
-            refreshData();
-        }, AUTO_REFRESH_INTERVAL);
     </script>
 </body>
 </html>
