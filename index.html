@@ -1364,29 +1364,48 @@
             
             if (Notification.permission === 'granted') {
                 showNotification('✅ Bildirimler zaten açık');
+                updatePWAStatusBar();
                 return;
             }
             
-            // Direct browser notification request
-            Notification.requestPermission().then(permission => {
-                console.log('Browser permission result:', permission);
-                if (permission === 'granted') {
-                    showNotification('✅ Bildirimler açıldı!');
-                    updatePWAStatusBar();
-                    
-                    // OneSignal'a da kayıt yap
-                    if (typeof OneSignal !== 'undefined') {
-                        OneSignal.push(() => {
-                            OneSignal.registerForPushNotifications();
+            // OneSignal v16 permission request
+            if (typeof OneSignalDeferred !== 'undefined') {
+                OneSignalDeferred.push(async function(OneSignal) {
+                    try {
+                        const permission = await OneSignal.Notifications.requestPermission();
+                        if (permission) {
+                            showNotification('✅ OneSignal bildirimler açıldı!');
+                            updatePWAStatusBar();
+                        } else {
+                            showNotification('❌ OneSignal bildirim izni verilmedi');
+                        }
+                    } catch (err) {
+                        // Fallback to browser notification
+                        Notification.requestPermission().then(permission => {
+                            if (permission === 'granted') {
+                                showNotification('✅ Browser bildirimler açıldı!');
+                                updatePWAStatusBar();
+                            } else {
+                                showNotification('❌ Bildirim izni verilmedi');
+                            }
                         });
                     }
-                } else {
-                    showNotification('❌ Bildirim izni verilmedi');
-                }
-            }).catch(err => {
-                console.error('Notification permission error:', err);
-                showNotification('❌ Bildirim hatası: ' + err.message);
-            });
+                });
+            } else {
+                // Direct browser notification request
+                Notification.requestPermission().then(permission => {
+                    console.log('Browser permission result:', permission);
+                    if (permission === 'granted') {
+                        showNotification('✅ Bildirimler açıldı!');
+                        updatePWAStatusBar();
+                    } else {
+                        showNotification('❌ Bildirim izni verilmedi');
+                    }
+                }).catch(err => {
+                    console.error('Notification permission error:', err);
+                    showNotification('❌ Bildirim hatası: ' + err.message);
+                });
+            }
         }
 
         // Detay paneli toggle
@@ -1414,6 +1433,13 @@
                 ">
                     <div style="margin-bottom: 8px;">
                         <strong>📱 Ana Ekran:</strong> ${window.matchMedia('(display-mode: standalone)').matches ? '✅ Kurulu' : '❌ Kurulu değil'}
+                    </div>
+                    <div style="margin-bottom: 8px; font-size: 10px; color: #888;">
+                        Display Mode: ${window.matchMedia('(display-mode: standalone)').matches ? 'standalone' : 
+                                       window.matchMedia('(display-mode: fullscreen)').matches ? 'fullscreen' : 'browser'}<br>
+                        iOS Standalone: ${window.navigator.standalone ? 'yes' : 'no'}<br>
+                        Referrer: ${document.referrer || 'none'}<br>
+                        Window Location: ${window.location.href}
                     </div>
                     <div style="margin-bottom: 8px;">
                         <strong>🔔 Bildirim İzni:</strong> ${Notification.permission}
@@ -1540,29 +1566,27 @@
                     showNotification('✅ Native test bildirimi gönderildi');
                 }
                 
-                // OneSignal test - biraz bekle yüklenmesi için
+                // OneSignal test - yeni v16 API
                 setTimeout(() => {
-                    if (typeof OneSignal !== 'undefined' && OneSignal.push) {
-                        OneSignal.push(() => {
+                    if (typeof OneSignalDeferred !== 'undefined') {
+                        OneSignalDeferred.push(async function(OneSignal) {
                             try {
-                                OneSignal.sendSelfNotification(
-                                    '🔥 OneSignal Test',
-                                    'OneSignal bildirimi çalışıyor!',
-                                    'https://onesignal.com',
-                                    '/oyun-durumum/icon-192.png'
-                                );
-                                results.push('✅ OneSignal test gönderildi');
+                                // Test self-notification
+                                await OneSignal.Notifications.requestPermission();
+                                const subscription = await OneSignal.User.PushSubscription.optIn();
+                                
+                                results.push('✅ OneSignal v16 hazır');
                                 if (resultSpan) resultSpan.innerHTML = results.join('<br>');
                             } catch (e) {
-                                results.push('❌ OneSignal hata: ' + e.message);
+                                results.push('❌ OneSignal v16 hata: ' + e.message);
                                 if (resultSpan) resultSpan.innerHTML = results.join('<br>');
                             }
                         });
                     } else {
-                        results.push('❌ OneSignal henüz yüklenmedi');
+                        results.push('❌ OneSignal v16 yüklenemedi');
                         if (resultSpan) resultSpan.innerHTML = results.join('<br>');
                     }
-                }, 1000);
+                }, 2000);
                 
             } catch (error) {
                 console.error('Notification error:', error);
