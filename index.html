@@ -464,26 +464,6 @@
             opacity: 0.3;
         }
 
-        /* Debug Info */
-        .debug-info {
-            position: fixed;
-            bottom: 100px;
-            left: 20px;
-            background: rgba(0, 0, 0, 0.9);
-            color: #0f0;
-            font-family: monospace;
-            font-size: 10px;
-            padding: 10px;
-            border-radius: 8px;
-            max-width: 250px;
-            display: none;
-            z-index: 1000;
-            border: 1px solid #0f0;
-        }
-
-        .debug-info.show {
-            display: block;
-        }
 
         /* Install prompt animation */
         @keyframes slideDown {
@@ -506,8 +486,6 @@
     <!-- Notification Badge -->
     <div class="notification-badge" id="notificationBadge"></div>
 
-    <!-- Debug Info -->
-    <div class="debug-info" id="debugInfo"></div>
 
     <!-- Main Container -->
     <div class="container">
@@ -560,18 +538,10 @@
         let currentProxyIndex = 0;
         let isLoading = false;
         let lastFetchTime = 0;
-        let debugMode = false;
 
-        // Debug log
+        // Simple log
         function debugLog(message, data = null) {
-            if (debugMode) {
-                console.log(`[DEBUG] ${message}`, data || '');
-                const debugInfo = document.getElementById('debugInfo');
-                debugInfo.innerHTML = `${new Date().toTimeString().slice(0, 8)}<br>${message}`;
-                if (data) {
-                    debugInfo.innerHTML += `<br>${JSON.stringify(data, null, 2)}`;
-                }
-            }
+            console.log(`[LOG] ${message}`, data || '');
         }
 
         // Get Turkey time with correct handling
@@ -1083,25 +1053,6 @@
 
         // Initialize
         async function init() {
-            // Enable debug mode with triple tap
-            let tapCount = 0;
-            let tapTimer;
-            
-            document.addEventListener('click', (e) => {
-                if (e.target.closest('.refresh-fab')) return;
-                
-                tapCount++;
-                clearTimeout(tapTimer);
-                
-                if (tapCount === 3) {
-                    debugMode = !debugMode;
-                    document.getElementById('debugInfo').classList.toggle('show', debugMode);
-                    showNotification(debugMode ? 'Debug ON' : 'Debug OFF');
-                    tapCount = 0;
-                } else {
-                    tapTimer = setTimeout(() => tapCount = 0, 500);
-                }
-            });
 
             // Check cache first
             try {
@@ -1287,159 +1238,237 @@
             }
         }, { once: true });
 
-        // PWA Durumu gösterge paneli ekle
-        function addPWAStatusPanel() {
-            const statusPanel = document.createElement('div');
-            statusPanel.id = 'pwa-status-panel';
-            statusPanel.innerHTML = `
+        // Basit PWA Durum Çubuğu - Her zaman görünür
+        function addPWAStatusBar() {
+            const statusBar = document.createElement('div');
+            statusBar.id = 'pwa-status-bar';
+            statusBar.innerHTML = `
                 <div style="
                     position: fixed;
-                    bottom: 100px;
-                    left: 20px;
-                    right: 20px;
-                    background: rgba(0, 0, 0, 0.9);
+                    top: 0;
+                    left: 0;
+                    right: 0;
+                    background: linear-gradient(135deg, rgba(0, 0, 0, 0.9), rgba(20, 20, 20, 0.9));
                     backdrop-filter: blur(10px);
-                    border: 1px solid rgba(255, 255, 255, 0.1);
-                    border-radius: 16px;
-                    padding: 20px;
-                    z-index: 1000;
+                    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+                    padding: 8px 16px;
+                    z-index: 2000;
                     color: white;
-                    font-size: 14px;
-                    max-width: 400px;
-                    margin: 0 auto;
-                " id="status-container">
-                    <div style="font-weight: 600; margin-bottom: 16px; text-align: center;">⚙️ Uygulama Ayarları</div>
-                    
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-                        <span>📱 Ana Ekrana Eklendi</span>
-                        <span id="install-status" style="font-weight: 600;">❌ Hayır</span>
+                    font-size: 12px;
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                ">
+                    <div style="display: flex; gap: 16px; align-items: center;">
+                        <span>📱<span id="install-icon">❌</span></span>
+                        <span>🔔<span id="notif-icon">❌</span></span>
                     </div>
-                    
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
-                        <span>🔔 Bildirimler</span>
-                        <span id="notification-status" style="font-weight: 600;">❌ Kapalı</span>
-                    </div>
-                    
-                    <div style="text-align: center; margin-bottom: 12px;">
-                        <button id="install-btn" onclick="manualInstall()" style="
+                    <div style="display: flex; gap: 8px;">
+                        <button id="quick-install" onclick="quickInstall()" style="
                             background: rgba(0, 255, 136, 0.2);
-                            border: 1px solid rgba(0, 255, 136, 0.5);
-                            color: var(--primary);
-                            padding: 8px 16px;
-                            border-radius: 8px;
-                            margin-right: 8px;
+                            border: 1px solid rgba(0, 255, 136, 0.3);
+                            color: #00ff88;
+                            padding: 4px 8px;
+                            border-radius: 4px;
                             cursor: pointer;
-                            font-size: 12px;
-                        ">Ana Ekrana Ekle</button>
-                        
-                        <button id="notification-btn" onclick="manualNotification()" style="
+                            font-size: 10px;
+                            display: none;
+                        ">Ekle</button>
+                        <button id="quick-notify" onclick="quickNotify()" style="
                             background: rgba(255, 170, 0, 0.2);
-                            border: 1px solid rgba(255, 170, 0, 0.5);
-                            color: var(--warning);
-                            padding: 8px 16px;
-                            border-radius: 8px;
+                            border: 1px solid rgba(255, 170, 0, 0.3);
+                            color: #ffaa00;
+                            padding: 4px 8px;
+                            border-radius: 4px;
                             cursor: pointer;
-                            font-size: 12px;
-                        ">Bildirim Aç</button>
-                    </div>
-                    
-                    <div style="font-size: 12px; color: var(--text-dim); text-align: center; margin-bottom: 12px;" id="help-text">
-                        Ana ekrana ekleme ve bildirimler için yukarıdaki butonları kullan
-                    </div>
-                    
-                    <div style="text-align: center;">
-                        <button onclick="closePWAPanel()" style="
+                            font-size: 10px;
+                        ">Bildirim</button>
+                        <button onclick="togglePWADetails()" style="
                             background: rgba(255, 255, 255, 0.1);
                             border: 1px solid rgba(255, 255, 255, 0.2);
                             color: white;
-                            padding: 6px 12px;
-                            border-radius: 6px;
+                            padding: 4px 8px;
+                            border-radius: 4px;
                             cursor: pointer;
-                            font-size: 12px;
-                        ">Kapat</button>
+                            font-size: 10px;
+                        ">ℹ️</button>
                     </div>
                 </div>
             `;
-            document.body.appendChild(statusPanel);
-            updatePWAStatus();
+            document.body.appendChild(statusBar);
+            
+            // Ana içeriğe padding ekle
+            document.querySelector('.container').style.paddingTop = '60px';
+            
+            updatePWAStatusBar();
         }
 
-        // PWA durumu güncelle
-        function updatePWAStatus() {
-            const installStatus = document.getElementById('install-status');
-            const notificationStatus = document.getElementById('notification-status');
-            const installBtn = document.getElementById('install-btn');
-            const notificationBtn = document.getElementById('notification-btn');
-            const helpText = document.getElementById('help-text');
+        // Basit durum güncellemesi
+        function updatePWAStatusBar() {
+            const installIcon = document.getElementById('install-icon');
+            const notifIcon = document.getElementById('notif-icon');
+            const installBtn = document.getElementById('quick-install');
+            const notifyBtn = document.getElementById('quick-notify');
             
-            if (!installStatus) return;
+            if (!installIcon) return;
             
-            // Ana ekran durumu
-            const isInstalled = window.matchMedia('(display-mode: standalone)').matches || 
-                               window.navigator.standalone === true;
+            // PWA kurulum durumu - daha basit kontrol
+            const isStandalone = window.matchMedia('(display-mode: standalone)').matches;
+            const isIOSStandalone = window.navigator.standalone === true;
+            const isPWAInstalled = isStandalone || isIOSStandalone || document.referrer.includes('android-app://');
             
-            if (isInstalled) {
-                installStatus.textContent = '✅ Evet';
-                installStatus.style.color = 'var(--primary)';
+            if (isPWAInstalled) {
+                installIcon.textContent = '✅';
                 installBtn.style.display = 'none';
             } else {
-                installStatus.textContent = '❌ Hayır';
-                installStatus.style.color = 'var(--secondary)';
+                installIcon.textContent = '❌';
                 installBtn.style.display = deferredPrompt ? 'inline-block' : 'none';
             }
             
             // Bildirim durumu
             if (Notification.permission === 'granted') {
-                notificationStatus.textContent = '✅ Açık';
-                notificationStatus.style.color = 'var(--primary)';
-                notificationBtn.style.display = 'none';
-            } else if (Notification.permission === 'denied') {
-                notificationStatus.textContent = '🚫 Reddedildi';
-                notificationStatus.style.color = 'var(--secondary)';
-                notificationBtn.textContent = 'Ayarlardan Aç';
+                notifIcon.textContent = '✅';
+                notifyBtn.style.display = 'none';
             } else {
-                notificationStatus.textContent = '❌ Kapalı';
-                notificationStatus.style.color = 'var(--secondary)';
-            }
-            
-            // Yardım metni
-            if (isInstalled && Notification.permission === 'granted') {
-                helpText.textContent = '🎉 Tüm özellikler aktif! Artık bildirim alabilirsin.';
-                helpText.style.color = 'var(--primary)';
-            } else if (!isInstalled) {
-                helpText.textContent = 'iPhone: Safari → Share → "Add to Home Screen"';
-            } else if (Notification.permission === 'denied') {
-                helpText.textContent = 'Bildirimler için tarayıcı ayarlarından izin ver';
+                notifIcon.textContent = '❌';
+                notifyBtn.style.display = 'inline-block';
             }
         }
 
-        // Manuel fonksiyonlar
-        window.manualInstall = function() {
+        // Hızlı fonksiyonlar
+        window.quickInstall = function() {
+            console.log('Quick install clicked');
             if (deferredPrompt) {
-                installPWA();
+                deferredPrompt.prompt();
+                deferredPrompt.userChoice.then((choice) => {
+                    if (choice.outcome === 'accepted') {
+                        showNotification('✅ Ana ekrana eklendi!');
+                        setTimeout(updatePWAStatusBar, 1000);
+                    }
+                    deferredPrompt = null;
+                });
             } else {
-                showNotification('iPhone: Safari → Share → Add to Home Screen');
+                showNotification('📱 iPhone: Safari → Share → Add to Home Screen');
             }
         }
 
-        window.manualNotification = function() {
+        window.quickNotify = function() {
+            console.log('Quick notify clicked, current permission:', Notification.permission);
+            
             if (Notification.permission === 'denied') {
-                showNotification('Tarayıcı ayarlarından bildirim izni ver');
+                showNotification('❌ Reddedildi - Tarayıcı ayarlarından aç');
                 return;
             }
-            requestNotificationPermission();
-            setTimeout(updatePWAStatus, 1000);
+            
+            if (Notification.permission === 'granted') {
+                showNotification('✅ Bildirimler zaten açık');
+                return;
+            }
+            
+            // Direct browser notification request
+            Notification.requestPermission().then(permission => {
+                console.log('Browser permission result:', permission);
+                if (permission === 'granted') {
+                    showNotification('✅ Bildirimler açıldı!');
+                    updatePWAStatusBar();
+                    
+                    // OneSignal'a da kayıt yap
+                    if (typeof OneSignal !== 'undefined') {
+                        OneSignal.push(() => {
+                            OneSignal.registerForPushNotifications();
+                        });
+                    }
+                } else {
+                    showNotification('❌ Bildirim izni verilmedi');
+                }
+            }).catch(err => {
+                console.error('Notification permission error:', err);
+                showNotification('❌ Bildirim hatası: ' + err.message);
+            });
         }
 
-        window.closePWAPanel = function() {
-            const panel = document.getElementById('pwa-status-panel');
-            if (panel) panel.remove();
+        // Detay paneli toggle
+        let detailsVisible = false;
+        window.togglePWADetails = function() {
+            const existing = document.getElementById('pwa-details');
+            if (existing) {
+                existing.remove();
+                detailsVisible = false;
+                return;
+            }
+            
+            const details = document.createElement('div');
+            details.id = 'pwa-details';
+            details.innerHTML = `
+                <div style="
+                    position: fixed;
+                    top: 45px;
+                    left: 16px;
+                    right: 16px;
+                    background: rgba(0, 0, 0, 0.95);
+                    border: 1px solid rgba(255, 255, 255, 0.2);
+                    border-radius: 8px;
+                    padding: 12px;
+                    z-index: 1999;
+                    color: white;
+                    font-size: 12px;
+                ">
+                    <div style="margin-bottom: 8px;">
+                        <strong>📱 Ana Ekran:</strong> ${window.matchMedia('(display-mode: standalone)').matches ? '✅ Kurulu' : '❌ Kurulu değil'}
+                    </div>
+                    <div style="margin-bottom: 8px;">
+                        <strong>🔔 Bildirim İzni:</strong> ${Notification.permission}
+                    </div>
+                    <div style="margin-bottom: 8px;">
+                        <strong>🌐 OneSignal:</strong> ${typeof OneSignal !== 'undefined' ? '✅ Yüklü' : '❌ Yüklenemedi'}
+                    </div>
+                    <div style="margin-bottom: 8px;">
+                        <strong>📍 URL:</strong> ${window.location.href}
+                    </div>
+                    <div style="margin-bottom: 8px;">
+                        <strong>📱 User Agent:</strong> ${navigator.userAgent.substring(0, 50)}...
+                    </div>
+                    <button onclick="testNotification()" style="
+                        background: rgba(0, 255, 136, 0.2);
+                        border: 1px solid rgba(0, 255, 136, 0.5);
+                        color: #00ff88;
+                        padding: 6px 12px;
+                        border-radius: 4px;
+                        cursor: pointer;
+                        font-size: 11px;
+                        margin-right: 8px;
+                    ">Test Bildirim</button>
+                    <button onclick="togglePWADetails()" style="
+                        background: rgba(255, 255, 255, 0.1);
+                        border: 1px solid rgba(255, 255, 255, 0.2);
+                        color: white;
+                        padding: 6px 12px;
+                        border-radius: 4px;
+                        cursor: pointer;
+                        font-size: 11px;
+                    ">Kapat</button>
+                </div>
+            `;
+            document.body.appendChild(details);
+            detailsVisible = true;
         }
 
-        // 2 saniye sonra panel ekle
+        window.testNotification = function() {
+            if (Notification.permission === 'granted') {
+                new Notification('🎮 Test Bildirimi', {
+                    body: 'Bildirimler çalışıyor!',
+                    icon: '/oyun-durumum/icon-192.png'
+                });
+                showNotification('✅ Test bildirimi gönderildi');
+            } else {
+                showNotification('❌ Bildirim izni gerekli');
+            }
+        }
+
+        // Hemen çubuğu ekle
         setTimeout(() => {
-            addPWAStatusPanel();
-        }, 2000);
+            addPWAStatusBar();
+        }, 500);
 
         // Service Worker
         if ('serviceWorker' in navigator) {
