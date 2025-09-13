@@ -14,6 +14,17 @@
     <link rel="icon" type="image/png" sizes="192x192" href="/oyun-durumum/icon-192.png">
     <link rel="apple-touch-icon" href="/oyun-durumum/icon-192.png">
     
+    <!-- OneSignal Push Notifications -->
+    <script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
+    <script>
+      window.OneSignalDeferred = window.OneSignalDeferred || [];
+      OneSignalDeferred.push(async function(OneSignal) {
+        await OneSignal.init({
+          appId: "9309221c-6002-41dc-8e40-acea4b6b3869",
+        });
+      });
+    </script>
+    
     <style>
         * {
             margin: 0;
@@ -472,6 +483,18 @@
 
         .debug-info.show {
             display: block;
+        }
+
+        /* Install prompt animation */
+        @keyframes slideDown {
+            from {
+                transform: translateY(-100px);
+                opacity: 0;
+            }
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
         }
     </style>
 </head>
@@ -1093,6 +1116,123 @@
                 refreshData(true);
             }
         }
+
+        // PWA Install Prompt Management
+        let deferredPrompt;
+        let hasShownInstallPrompt = localStorage.getItem('pwa-install-prompted') === 'true';
+        let hasShownNotificationPrompt = localStorage.getItem('notification-prompted') === 'true';
+
+        // Install prompt handling
+        window.addEventListener('beforeinstallprompt', (e) => {
+            e.preventDefault();
+            deferredPrompt = e;
+            
+            if (!hasShownInstallPrompt) {
+                setTimeout(() => showInstallPrompt(), 3000); // 3 saniye sonra göster
+            }
+        });
+
+        function showInstallPrompt() {
+            if (!deferredPrompt) return;
+            
+            const installButton = document.createElement('div');
+            installButton.innerHTML = `
+                <div style="
+                    position: fixed;
+                    top: 20px;
+                    left: 20px;
+                    right: 20px;
+                    background: linear-gradient(135deg, var(--primary), var(--secondary));
+                    color: white;
+                    padding: 16px;
+                    border-radius: 16px;
+                    z-index: 1000;
+                    text-align: center;
+                    box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+                    animation: slideDown 0.3s ease-out;
+                " id="install-prompt">
+                    <div style="font-weight: 600; margin-bottom: 8px;">📱 Ana Ekrana Ekle</div>
+                    <div style="font-size: 14px; margin-bottom: 12px;">Hızlı erişim için uygulamayı ana ekranına ekle</div>
+                    <button onclick="installPWA()" style="
+                        background: rgba(255,255,255,0.2);
+                        border: 1px solid rgba(255,255,255,0.3);
+                        color: white;
+                        padding: 8px 16px;
+                        border-radius: 8px;
+                        margin-right: 8px;
+                        cursor: pointer;
+                    ">Ekle</button>
+                    <button onclick="dismissInstallPrompt()" style="
+                        background: transparent;
+                        border: 1px solid rgba(255,255,255,0.3);
+                        color: white;
+                        padding: 8px 16px;
+                        border-radius: 8px;
+                        cursor: pointer;
+                    ">Şimdi Değil</button>
+                </div>
+            `;
+            
+            document.body.appendChild(installButton);
+            localStorage.setItem('pwa-install-prompted', 'true');
+            hasShownInstallPrompt = true;
+        }
+
+        window.installPWA = async function() {
+            if (deferredPrompt) {
+                deferredPrompt.prompt();
+                const { outcome } = await deferredPrompt.userChoice;
+                if (outcome === 'accepted') {
+                    showNotification('✅ Uygulama ana ekrana eklendi!');
+                    // Ana ekrana eklendikten sonra bildirim izni iste
+                    setTimeout(() => requestNotificationPermission(), 1000);
+                }
+                deferredPrompt = null;
+            }
+            dismissInstallPrompt();
+        }
+
+        window.dismissInstallPrompt = function() {
+            const prompt = document.getElementById('install-prompt');
+            if (prompt) {
+                prompt.remove();
+            }
+        }
+
+        // Notification Permission Management
+        function requestNotificationPermission() {
+            if (hasShownNotificationPrompt) return;
+            if (!('Notification' in window)) return;
+            
+            // OneSignal ile bildirim izni iste
+            if (typeof OneSignal !== 'undefined') {
+                OneSignal.push(function() {
+                    OneSignal.showNativePrompt().then(function(result) {
+                        localStorage.setItem('notification-prompted', 'true');
+                        hasShownNotificationPrompt = true;
+                        
+                        if (result) {
+                            showNotification('🔔 Bildirimler aktif!');
+                        }
+                    });
+                });
+            }
+        }
+
+        // Check for PWA installation and request notification
+        window.addEventListener('appinstalled', (evt) => {
+            showNotification('✅ Uygulama kuruldu!');
+            setTimeout(() => requestNotificationPermission(), 1000);
+        });
+
+        // İlk yükleme - etkileşim sonrası bildirim izni iste
+        let hasRequestedNotification = false;
+        document.addEventListener('click', () => {
+            if (!hasRequestedNotification && !hasShownNotificationPrompt) {
+                setTimeout(() => requestNotificationPermission(), 500);
+                hasRequestedNotification = true;
+            }
+        }, { once: true });
 
         // Service Worker
         if ('serviceWorker' in navigator) {
