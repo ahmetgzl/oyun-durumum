@@ -46,6 +46,7 @@
               appId: "9309221c-6002-41dc-8e40-acea4b6b3869",
               serviceWorkerPath: "/oyun-durumum/OneSignalSDKWorker.js",
               serviceWorkerParam: { scope: "/oyun-durumum/" },
+              allowLocalhostAsSecureOrigin: true,
             });
           });
         };
@@ -1238,22 +1239,44 @@
             if (hasShownNotificationPrompt) return;
             if (!('Notification' in window)) return;
             
-            // OneSignal ile bildirim izni iste
-            if (typeof OneSignal !== 'undefined') {
-                OneSignal.push(function() {
-                    OneSignal.showNativePrompt().then(function(result) {
+            // v16 API kullan
+            if (typeof OneSignalDeferred !== 'undefined') {
+                OneSignalDeferred.push(async function(OneSignal) {
+                    try {
+                        const permission = await OneSignal.Notifications.requestPermission();
                         localStorage.setItem('notification-prompted', 'true');
                         hasShownNotificationPrompt = true;
                         
-                        if (result) {
-                            showNotification('🔔 Bildirimler aktif!');
+                        if (permission) {
+                            showNotification('🔔 OneSignal v16 bildirimler aktif!');
                         } else {
-                            showNotification('❌ Bildirim izni reddedildi');
+                            showNotification('❌ OneSignal v16 bildirim izni reddedildi');
                         }
                         
-                        // Panel durumunu güncelle
                         setTimeout(updatePWAStatus, 500);
-                    });
+                    } catch (err) {
+                        console.error('OneSignal v16 permission error:', err);
+                        showNotification('❌ OneSignal v16 hata: ' + err.message);
+                    }
+                });
+            }
+            // Legacy API fallback
+            else if (typeof OneSignal !== 'undefined' && OneSignal.push) {
+                OneSignal.push(function() {
+                    if (OneSignal.showNativePrompt) {
+                        OneSignal.showNativePrompt().then(function(result) {
+                            localStorage.setItem('notification-prompted', 'true');
+                            hasShownNotificationPrompt = true;
+                            
+                            if (result) {
+                                showNotification('🔔 Legacy bildirimler aktif!');
+                            } else {
+                                showNotification('❌ Legacy bildirim izni reddedildi');
+                            }
+                            
+                            setTimeout(updatePWAStatus, 500);
+                        });
+                    }
                 });
             }
         }
@@ -1646,9 +1669,13 @@
             addPWAStatusBar();
         }, 500);
 
-        // Service Worker
+        // Service Worker - OneSignal ile conflict önleme
         if ('serviceWorker' in navigator) {
-            navigator.serviceWorker.register('/oyun-durumum/sw.js').catch(() => {});
+            navigator.serviceWorker.register('/oyun-durumum/sw.js', {
+                scope: '/oyun-durumum/'
+            }).catch(() => {
+                console.log('Our SW registration failed, OneSignal will handle it');
+            });
         }
     </script>
 </body>
