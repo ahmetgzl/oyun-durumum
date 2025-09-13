@@ -1172,7 +1172,7 @@
             deferredPrompt = e;
             
             if (!hasShownInstallPrompt) {
-                setTimeout(() => showInstallPrompt(), 3000); // 3 saniye sonra göster
+                setTimeout(() => showInstallPrompt(), 1000); // 1 saniye sonra göster
             }
         });
 
@@ -1229,7 +1229,9 @@
                 if (outcome === 'accepted') {
                     showNotification('✅ Uygulama ana ekrana eklendi!');
                     // Ana ekrana eklendikten sonra bildirim izni iste
-                    setTimeout(() => requestNotificationPermission(), 1000);
+                    setTimeout(() => requestNotificationPermission(), 2000);
+                } else {
+                    showNotification('❌ Ana ekrana eklenmedi');
                 }
                 deferredPrompt = null;
             }
@@ -1255,8 +1257,14 @@
                         localStorage.setItem('notification-prompted', 'true');
                         hasShownNotificationPrompt = true;
                         
+                        // Bildirim butonunu kaldır
+                        const notifBtn = document.querySelector('button[onclick*="requestNotificationPermission"]');
+                        if (notifBtn) notifBtn.remove();
+                        
                         if (result) {
                             showNotification('🔔 Bildirimler aktif!');
+                        } else {
+                            showNotification('❌ Bildirim izni reddedildi');
                         }
                     });
                 });
@@ -1277,6 +1285,33 @@
                 hasRequestedNotification = true;
             }
         }, { once: true });
+
+        // Manuel bildirim izni butonu ekle
+        function addNotificationButton() {
+            if (hasShownNotificationPrompt || !('Notification' in window)) return;
+            
+            const notifBtn = document.createElement('button');
+            notifBtn.innerHTML = '🔔 Bildirim İzni Ver';
+            notifBtn.style.cssText = `
+                position: fixed;
+                bottom: 100px;
+                left: 30px;
+                background: linear-gradient(135deg, var(--primary), var(--secondary));
+                color: white;
+                border: none;
+                padding: 12px 16px;
+                border-radius: 25px;
+                font-size: 14px;
+                cursor: pointer;
+                z-index: 100;
+                box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+            `;
+            notifBtn.onclick = requestNotificationPermission;
+            document.body.appendChild(notifBtn);
+        }
+
+        // 3 saniye sonra bildirim butonu ekle
+        setTimeout(addNotificationButton, 3000);
 
         // Service Worker
         if ('serviceWorker' in navigator) {
