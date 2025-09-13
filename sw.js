@@ -41,37 +41,40 @@ self.addEventListener('activate', event => {
 
 // Fetch event - Network first, cache fallback
 self.addEventListener('fetch', event => {
-  // Google Sheets ve proxy istekleri için cache kullanma
+  // Skip cache for external APIs and extensions
   if (event.request.url.includes('docs.google.com') || 
       event.request.url.includes('allorigins.win') ||
       event.request.url.includes('corsproxy.io') ||
-      event.request.url.includes('codetabs.com')) {
-    event.respondWith(fetch(event.request));
+      event.request.url.includes('codetabs.com') ||
+      event.request.url.includes('onesignal.com') ||
+      event.request.url.includes('chrome-extension') ||
+      !event.request.url.startsWith('http')) {
+    event.respondWith(fetch(event.request).catch(() => new Response('', {status: 404})));
     return;
   }
 
   event.respondWith(
     fetch(event.request)
       .then(response => {
-        // Başarılı yanıtı cache'e kaydet - chrome-extension ve unsupported schemes'ı skip et
+        // Cache only same-origin responses
         if (response && response.status === 200 && response.type === 'basic' && 
-            !event.request.url.includes('chrome-extension') && 
-            event.request.url.startsWith('http')) {
+            event.request.url.startsWith(self.registration.scope)) {
           const responseToCache = response.clone();
           caches.open(CACHE_NAME)
             .then(cache => {
               cache.put(event.request, responseToCache);
             })
             .catch(err => {
-              // Cache hatalarını sessizce geç
-              console.log('Cache put error:', err);
+              // Cache errors silently
             });
         }
         return response;
       })
       .catch(() => {
-        // Network başarısızsa cache'den dön
-        return caches.match(event.request);
+        // Network failed, try cache
+        return caches.match(event.request).then(response => {
+          return response || new Response('', {status: 404});
+        });
       })
   );
 });

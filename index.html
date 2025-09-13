@@ -14,15 +14,50 @@
     <link rel="icon" type="image/png" sizes="192x192" href="/oyun-durumum/icon-192.png">
     <link rel="apple-touch-icon" href="/oyun-durumum/icon-192.png">
     
-    <!-- OneSignal Push Notifications -->
-    <script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
+    <!-- OneSignal Push Notifications - Alternative Loading -->
     <script>
       window.OneSignalDeferred = window.OneSignalDeferred || [];
-      OneSignalDeferred.push(async function(OneSignal) {
-        await OneSignal.init({
-          appId: "9309221c-6002-41dc-8e40-acea4b6b3869",
-        });
-      });
+      
+      // Try to load OneSignal SDK with fallback
+      function loadOneSignalSDK() {
+        const script = document.createElement('script');
+        script.src = 'https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js';
+        script.defer = true;
+        script.onerror = function() {
+          console.log('OneSignal v16 failed, trying legacy SDK');
+          // Fallback to legacy SDK
+          const fallbackScript = document.createElement('script');
+          fallbackScript.src = 'https://cdn.onesignal.com/sdks/OneSignalSDK.js';
+          fallbackScript.onload = function() {
+            window.OneSignal = window.OneSignal || [];
+            OneSignal.push(function() {
+              OneSignal.init({
+                appId: "9309221c-6002-41dc-8e40-acea4b6b3869",
+                path: "/oyun-durumum/",
+                serviceWorkerPath: "/oyun-durumum/OneSignalSDKWorker.js",
+              });
+            });
+          };
+          document.head.appendChild(fallbackScript);
+        };
+        script.onload = function() {
+          OneSignalDeferred.push(async function(OneSignal) {
+            await OneSignal.init({
+              appId: "9309221c-6002-41dc-8e40-acea4b6b3869",
+              serviceWorkerPath: "/oyun-durumum/OneSignalSDKWorker.js",
+              serviceWorkerParam: { scope: "/oyun-durumum/" },
+            });
+          });
+        };
+        document.head.appendChild(script);
+      }
+      
+      // Load SDK after DOM is ready
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', loadOneSignalSDK);
+      } else {
+        loadOneSignalSDK();
+      }
     </script>
     
     <style>
@@ -1445,7 +1480,12 @@
                         <strong>🔔 Bildirim İzni:</strong> ${Notification.permission}
                     </div>
                     <div style="margin-bottom: 8px;">
-                        <strong>🌐 OneSignal:</strong> ${typeof OneSignal !== 'undefined' ? '✅ Yüklü' : '❌ Yüklenemedi'}
+                        <strong>🌐 OneSignal:</strong> ${typeof OneSignal !== 'undefined' ? '✅ Legacy Yüklü' : 
+                                                         typeof OneSignalDeferred !== 'undefined' && OneSignalDeferred.length > 0 ? '✅ v16 Yüklü' : '❌ CDN Engellenmiş/Yüklenemedi'}
+                    </div>
+                    <div style="margin-bottom: 8px; font-size: 10px; color: #888;">
+                        AdBlock/uBlock aktif mi? OneSignal CDN engellenebilir<br>
+                        Service Worker Path: /oyun-durumum/OneSignalSDKWorker.js
                     </div>
                     <div style="margin-bottom: 8px;">
                         <strong>📍 URL:</strong> ${window.location.href}
@@ -1566,24 +1606,25 @@
                     showNotification('✅ Native test bildirimi gönderildi');
                 }
                 
-                // OneSignal test - yeni v16 API
+                // OneSignal test - hem v16 hem legacy desteği
                 setTimeout(() => {
-                    if (typeof OneSignalDeferred !== 'undefined') {
+                    if (typeof OneSignalDeferred !== 'undefined' && OneSignalDeferred.length > 0) {
                         OneSignalDeferred.push(async function(OneSignal) {
                             try {
-                                // Test self-notification
-                                await OneSignal.Notifications.requestPermission();
-                                const subscription = await OneSignal.User.PushSubscription.optIn();
-                                
-                                results.push('✅ OneSignal v16 hazır');
+                                results.push('✅ OneSignal v16 yüklendi');
                                 if (resultSpan) resultSpan.innerHTML = results.join('<br>');
                             } catch (e) {
                                 results.push('❌ OneSignal v16 hata: ' + e.message);
                                 if (resultSpan) resultSpan.innerHTML = results.join('<br>');
                             }
                         });
+                    } else if (typeof OneSignal !== 'undefined' && OneSignal.push) {
+                        OneSignal.push(() => {
+                            results.push('✅ OneSignal Legacy yüklendi');
+                            if (resultSpan) resultSpan.innerHTML = results.join('<br>');
+                        });
                     } else {
-                        results.push('❌ OneSignal v16 yüklenemedi');
+                        results.push('❌ OneSignal hiç yüklenemedi');
                         if (resultSpan) resultSpan.innerHTML = results.join('<br>');
                     }
                 }, 2000);
