@@ -865,32 +865,56 @@
                 }
             }
 
-            // Not in any time slot - show general status for today
-            if (hasOnlineToday) {
-                return {
-                    icon: '📅',
-                    text: 'Bugün oynayacağım',
-                    type: 'maybe',
-                    color: 'var(--warning)',
-                    activeSlot: null
-                };
-            } else if (hasMaybeToday) {
-                return {
-                    icon: '🤔',
-                    text: 'Bugün belki gelirim',
-                    type: 'maybe',
-                    color: 'var(--warning)',
-                    activeSlot: null
-                };
-            } else {
+            // Not in any time slot - check if there are future slots today
+            const futureSlots = todayData.filter(row => {
+                const [, , baslangic] = row;
+                const startMinutes = parseTimeToMinutes(baslangic);
+                return startMinutes > currentMinutes; // Gelecekteki saatler
+            });
+
+            if (futureSlots.length > 0) {
+                // Gelecekte oyun saatleri var
+                const hasKesinFuture = futureSlots.some(row => row[1] === 'Kesin');
+                const hasMaybeFuture = futureSlots.some(row => row[1] === 'Belki');
+                
+                if (hasKesinFuture) {
+                    return {
+                        icon: '📅',
+                        text: 'Bugün daha oynayacağım',
+                        type: 'maybe',
+                        color: 'var(--warning)',
+                        activeSlot: null
+                    };
+                } else if (hasMaybeFuture) {
+                    return {
+                        icon: '🤔',
+                        text: 'Bugün belki daha gelirim',
+                        type: 'maybe',
+                        color: 'var(--warning)',
+                        activeSlot: null
+                    };
+                }
+            }
+            
+            // Geçmişte saatler vardı ama şimdi yok
+            if (hasOnlineToday || hasMaybeToday) {
                 return {
                     icon: '💤',
-                    text: 'Bugün yokum',
+                    text: 'Bugünkü oyun bitti',
                     type: 'offline',
                     color: 'var(--secondary)',
                     activeSlot: null
                 };
             }
+            
+            // Hiç oyun planı yok
+            return {
+                icon: '💤',
+                text: 'Bugün yokum',
+                type: 'offline',
+                color: 'var(--secondary)',
+                activeSlot: null
+            };
         }
 
         // Update UI
@@ -927,7 +951,20 @@
             if (todayData.length > 0) {
                 html += '<div class="time-pills">';
                 
-                todayData.forEach((row, index) => {
+                // Saatlere göre sırala (en erken en üstte)
+                const sortedTodayData = [...todayData].sort((a, b) => {
+                    const timeA = parseTimeToMinutes(a[2]); // başlangıç saati
+                    const timeB = parseTimeToMinutes(b[2]);
+                    
+                    // Geçersiz saatler en sona
+                    if (timeA === null && timeB === null) return 0;
+                    if (timeA === null) return 1;
+                    if (timeB === null) return -1;
+                    
+                    return timeA - timeB; // Küçükten büyüğe sırala
+                });
+                
+                sortedTodayData.forEach((row, index) => {
                     const [date, durum, baslangic, bitis, note] = row;
                     
                     let indicatorClass = 'unavailable';
@@ -937,7 +974,14 @@
                     const timeRange = (baslangic || '?') + ' - ' + (bitis || '?');
                     const displayNote = note || durum;
                     
-                    const isActive = index === status.activeSlot;
+                    // Orijinal index'i bul (çünkü sıraladık)
+                    const originalIndex = todayData.findIndex(originalRow => 
+                        originalRow[0] === date && 
+                        originalRow[1] === durum && 
+                        originalRow[2] === baslangic && 
+                        originalRow[3] === bitis
+                    );
+                    const isActive = originalIndex === status.activeSlot;
 
                     html += `
                         <div class="time-pill ${isActive ? 'active' : ''}">
