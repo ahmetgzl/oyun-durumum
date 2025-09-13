@@ -1311,10 +1311,13 @@
             
             if (!installIcon) return;
             
-            // PWA kurulum durumu - daha basit kontrol
+            // PWA kurulum durumu - gelişmiş kontrol
             const isStandalone = window.matchMedia('(display-mode: standalone)').matches;
             const isIOSStandalone = window.navigator.standalone === true;
-            const isPWAInstalled = isStandalone || isIOSStandalone || document.referrer.includes('android-app://');
+            const isAndroidApp = document.referrer.includes('android-app://') || 
+                                window.location.href.includes('utm_source=web_app_manifest');
+            const isFullscreen = window.matchMedia('(display-mode: fullscreen)').matches;
+            const isPWAInstalled = isStandalone || isIOSStandalone || isAndroidApp || isFullscreen;
             
             if (isPWAInstalled) {
                 installIcon.textContent = '✅';
@@ -1486,38 +1489,80 @@
             }
             
             try {
-                // Browser native notification
-                const notification = new Notification('🎮 Test Bildirimi', {
-                    body: 'Native bildirim çalışıyor!',
-                    icon: '/oyun-durumum/icon-192.png',
-                    tag: 'test-notification',
-                    requireInteraction: true,
-                    silent: false
-                });
-                
-                notification.onclick = function() {
-                    window.focus();
-                    notification.close();
-                };
-                
-                results.push('✅ Native test gönderildi');
-                showNotification('✅ Native test bildirimi gönderildi');
-                
-                // OneSignal test de ekle
-                if (typeof OneSignal !== 'undefined') {
-                    OneSignal.push(() => {
-                        OneSignal.sendSelfNotification(
-                            '🔥 OneSignal Test',
-                            'OneSignal bildirimi çalışıyor!',
-                            'https://onesignal.com',
-                            '/oyun-durumum/icon-192.png'
-                        );
+                // Android/PWA için Service Worker notification kullan
+                if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+                    navigator.serviceWorker.ready.then(registration => {
+                        registration.showNotification('🎮 Test Bildirimi', {
+                            body: 'Service Worker bildirimi çalışıyor!',
+                            icon: '/oyun-durumum/icon-192.png',
+                            tag: 'test-notification',
+                            requireInteraction: true,
+                            silent: false
+                        });
+                        results.push('✅ Service Worker test gönderildi');
+                        showNotification('✅ Service Worker test bildirimi gönderildi');
+                        if (resultSpan) resultSpan.innerHTML = results.join('<br>');
+                    }).catch(err => {
+                        // Fallback to regular notification
+                        const notification = new Notification('🎮 Test Bildirimi', {
+                            body: 'Native bildirim çalışıyor!',
+                            icon: '/oyun-durumum/icon-192.png',
+                            tag: 'test-notification',
+                            requireInteraction: true,
+                            silent: false
+                        });
+                        
+                        notification.onclick = function() {
+                            window.focus();
+                            notification.close();
+                        };
+                        
+                        results.push('✅ Native test gönderildi');
+                        showNotification('✅ Native test bildirimi gönderildi');
+                        if (resultSpan) resultSpan.innerHTML = results.join('<br>');
                     });
-                    results.push('✅ OneSignal test gönderildi');
-                    showNotification('✅ OneSignal test de gönderildi');
                 } else {
-                    results.push('❌ OneSignal yüklenemedi');
+                    // Desktop için normal notification
+                    const notification = new Notification('🎮 Test Bildirimi', {
+                        body: 'Native bildirim çalışıyor!',
+                        icon: '/oyun-durumum/icon-192.png',
+                        tag: 'test-notification',
+                        requireInteraction: true,
+                        silent: false
+                    });
+                    
+                    notification.onclick = function() {
+                        window.focus();
+                        notification.close();
+                    };
+                    
+                    results.push('✅ Native test gönderildi');
+                    showNotification('✅ Native test bildirimi gönderildi');
                 }
+                
+                // OneSignal test - biraz bekle yüklenmesi için
+                setTimeout(() => {
+                    if (typeof OneSignal !== 'undefined' && OneSignal.push) {
+                        OneSignal.push(() => {
+                            try {
+                                OneSignal.sendSelfNotification(
+                                    '🔥 OneSignal Test',
+                                    'OneSignal bildirimi çalışıyor!',
+                                    'https://onesignal.com',
+                                    '/oyun-durumum/icon-192.png'
+                                );
+                                results.push('✅ OneSignal test gönderildi');
+                                if (resultSpan) resultSpan.innerHTML = results.join('<br>');
+                            } catch (e) {
+                                results.push('❌ OneSignal hata: ' + e.message);
+                                if (resultSpan) resultSpan.innerHTML = results.join('<br>');
+                            }
+                        });
+                    } else {
+                        results.push('❌ OneSignal henüz yüklenmedi');
+                        if (resultSpan) resultSpan.innerHTML = results.join('<br>');
+                    }
+                }, 1000);
                 
             } catch (error) {
                 console.error('Notification error:', error);

@@ -69,3 +69,21 @@ self.addEventListener('fetch', event => {
       })
   );
 });
+
+// Notification click handling
+self.addEventListener('notificationclick', event => {
+  event.notification.close();
+  
+  event.waitUntil(
+    clients.matchAll().then(clientList => {
+      for (const client of clientList) {
+        if (client.url === self.registration.scope && 'focus' in client) {
+          return client.focus();
+        }
+      }
+      if (clients.openWindow) {
+        return clients.openWindow('/oyun-durumum/');
+      }
+    })
+  );
+});
