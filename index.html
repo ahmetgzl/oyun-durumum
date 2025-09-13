@@ -1228,6 +1228,8 @@
                 const { outcome } = await deferredPrompt.userChoice;
                 if (outcome === 'accepted') {
                     showNotification('✅ Uygulama ana ekrana eklendi!');
+                    // Panel durumunu güncelle
+                    setTimeout(updatePWAStatus, 500);
                     // Ana ekrana eklendikten sonra bildirim izni iste
                     setTimeout(() => requestNotificationPermission(), 2000);
                 } else {
@@ -1257,15 +1259,14 @@
                         localStorage.setItem('notification-prompted', 'true');
                         hasShownNotificationPrompt = true;
                         
-                        // Bildirim butonunu kaldır
-                        const notifBtn = document.querySelector('button[onclick*="requestNotificationPermission"]');
-                        if (notifBtn) notifBtn.remove();
-                        
                         if (result) {
                             showNotification('🔔 Bildirimler aktif!');
                         } else {
                             showNotification('❌ Bildirim izni reddedildi');
                         }
+                        
+                        // Panel durumunu güncelle
+                        setTimeout(updatePWAStatus, 500);
                     });
                 });
             }
@@ -1286,32 +1287,159 @@
             }
         }, { once: true });
 
-        // Manuel bildirim izni butonu ekle
-        function addNotificationButton() {
-            if (hasShownNotificationPrompt || !('Notification' in window)) return;
-            
-            const notifBtn = document.createElement('button');
-            notifBtn.innerHTML = '🔔 Bildirim İzni Ver';
-            notifBtn.style.cssText = `
-                position: fixed;
-                bottom: 100px;
-                left: 30px;
-                background: linear-gradient(135deg, var(--primary), var(--secondary));
-                color: white;
-                border: none;
-                padding: 12px 16px;
-                border-radius: 25px;
-                font-size: 14px;
-                cursor: pointer;
-                z-index: 100;
-                box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+        // PWA Durumu gösterge paneli ekle
+        function addPWAStatusPanel() {
+            const statusPanel = document.createElement('div');
+            statusPanel.id = 'pwa-status-panel';
+            statusPanel.innerHTML = `
+                <div style="
+                    position: fixed;
+                    bottom: 100px;
+                    left: 20px;
+                    right: 20px;
+                    background: rgba(0, 0, 0, 0.9);
+                    backdrop-filter: blur(10px);
+                    border: 1px solid rgba(255, 255, 255, 0.1);
+                    border-radius: 16px;
+                    padding: 20px;
+                    z-index: 1000;
+                    color: white;
+                    font-size: 14px;
+                    max-width: 400px;
+                    margin: 0 auto;
+                " id="status-container">
+                    <div style="font-weight: 600; margin-bottom: 16px; text-align: center;">⚙️ Uygulama Ayarları</div>
+                    
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                        <span>📱 Ana Ekrana Eklendi</span>
+                        <span id="install-status" style="font-weight: 600;">❌ Hayır</span>
+                    </div>
+                    
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                        <span>🔔 Bildirimler</span>
+                        <span id="notification-status" style="font-weight: 600;">❌ Kapalı</span>
+                    </div>
+                    
+                    <div style="text-align: center; margin-bottom: 12px;">
+                        <button id="install-btn" onclick="manualInstall()" style="
+                            background: rgba(0, 255, 136, 0.2);
+                            border: 1px solid rgba(0, 255, 136, 0.5);
+                            color: var(--primary);
+                            padding: 8px 16px;
+                            border-radius: 8px;
+                            margin-right: 8px;
+                            cursor: pointer;
+                            font-size: 12px;
+                        ">Ana Ekrana Ekle</button>
+                        
+                        <button id="notification-btn" onclick="manualNotification()" style="
+                            background: rgba(255, 170, 0, 0.2);
+                            border: 1px solid rgba(255, 170, 0, 0.5);
+                            color: var(--warning);
+                            padding: 8px 16px;
+                            border-radius: 8px;
+                            cursor: pointer;
+                            font-size: 12px;
+                        ">Bildirim Aç</button>
+                    </div>
+                    
+                    <div style="font-size: 12px; color: var(--text-dim); text-align: center; margin-bottom: 12px;" id="help-text">
+                        Ana ekrana ekleme ve bildirimler için yukarıdaki butonları kullan
+                    </div>
+                    
+                    <div style="text-align: center;">
+                        <button onclick="closePWAPanel()" style="
+                            background: rgba(255, 255, 255, 0.1);
+                            border: 1px solid rgba(255, 255, 255, 0.2);
+                            color: white;
+                            padding: 6px 12px;
+                            border-radius: 6px;
+                            cursor: pointer;
+                            font-size: 12px;
+                        ">Kapat</button>
+                    </div>
+                </div>
             `;
-            notifBtn.onclick = requestNotificationPermission;
-            document.body.appendChild(notifBtn);
+            document.body.appendChild(statusPanel);
+            updatePWAStatus();
         }
 
-        // 3 saniye sonra bildirim butonu ekle
-        setTimeout(addNotificationButton, 3000);
+        // PWA durumu güncelle
+        function updatePWAStatus() {
+            const installStatus = document.getElementById('install-status');
+            const notificationStatus = document.getElementById('notification-status');
+            const installBtn = document.getElementById('install-btn');
+            const notificationBtn = document.getElementById('notification-btn');
+            const helpText = document.getElementById('help-text');
+            
+            if (!installStatus) return;
+            
+            // Ana ekran durumu
+            const isInstalled = window.matchMedia('(display-mode: standalone)').matches || 
+                               window.navigator.standalone === true;
+            
+            if (isInstalled) {
+                installStatus.textContent = '✅ Evet';
+                installStatus.style.color = 'var(--primary)';
+                installBtn.style.display = 'none';
+            } else {
+                installStatus.textContent = '❌ Hayır';
+                installStatus.style.color = 'var(--secondary)';
+                installBtn.style.display = deferredPrompt ? 'inline-block' : 'none';
+            }
+            
+            // Bildirim durumu
+            if (Notification.permission === 'granted') {
+                notificationStatus.textContent = '✅ Açık';
+                notificationStatus.style.color = 'var(--primary)';
+                notificationBtn.style.display = 'none';
+            } else if (Notification.permission === 'denied') {
+                notificationStatus.textContent = '🚫 Reddedildi';
+                notificationStatus.style.color = 'var(--secondary)';
+                notificationBtn.textContent = 'Ayarlardan Aç';
+            } else {
+                notificationStatus.textContent = '❌ Kapalı';
+                notificationStatus.style.color = 'var(--secondary)';
+            }
+            
+            // Yardım metni
+            if (isInstalled && Notification.permission === 'granted') {
+                helpText.textContent = '🎉 Tüm özellikler aktif! Artık bildirim alabilirsin.';
+                helpText.style.color = 'var(--primary)';
+            } else if (!isInstalled) {
+                helpText.textContent = 'iPhone: Safari → Share → "Add to Home Screen"';
+            } else if (Notification.permission === 'denied') {
+                helpText.textContent = 'Bildirimler için tarayıcı ayarlarından izin ver';
+            }
+        }
+
+        // Manuel fonksiyonlar
+        window.manualInstall = function() {
+            if (deferredPrompt) {
+                installPWA();
+            } else {
+                showNotification('iPhone: Safari → Share → Add to Home Screen');
+            }
+        }
+
+        window.manualNotification = function() {
+            if (Notification.permission === 'denied') {
+                showNotification('Tarayıcı ayarlarından bildirim izni ver');
+                return;
+            }
+            requestNotificationPermission();
+            setTimeout(updatePWAStatus, 1000);
+        }
+
+        window.closePWAPanel = function() {
+            const panel = document.getElementById('pwa-status-panel');
+            if (panel) panel.remove();
+        }
+
+        // 2 saniye sonra panel ekle
+        setTimeout(() => {
+            addPWAStatusPanel();
+        }, 2000);
 
         // Service Worker
         if ('serviceWorker' in navigator) {
