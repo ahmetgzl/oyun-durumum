@@ -1238,26 +1238,25 @@
             }
         }, { once: true });
 
-        // Basit PWA Durum Çubuğu - Her zaman görünür
+        // Basit PWA Durum Çubuğu - Sayfa içeriği olarak
         function addPWAStatusBar() {
+            const container = document.querySelector('.container');
             const statusBar = document.createElement('div');
             statusBar.id = 'pwa-status-bar';
             statusBar.innerHTML = `
                 <div style="
-                    position: fixed;
-                    top: 0;
-                    left: 0;
-                    right: 0;
-                    background: linear-gradient(135deg, rgba(0, 0, 0, 0.9), rgba(20, 20, 20, 0.9));
+                    background: linear-gradient(135deg, rgba(10, 10, 10, 0.9), rgba(30, 30, 30, 0.9));
                     backdrop-filter: blur(10px);
-                    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-                    padding: 8px 16px;
-                    z-index: 2000;
+                    border: 1px solid rgba(255, 255, 255, 0.1);
+                    border-radius: 12px;
+                    padding: 12px 16px;
+                    margin-bottom: 20px;
                     color: white;
                     font-size: 12px;
                     display: flex;
                     justify-content: space-between;
                     align-items: center;
+                    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
                 ">
                     <div style="display: flex; gap: 16px; align-items: center;">
                         <span>📱<span id="install-icon">❌</span></span>
@@ -1295,10 +1294,10 @@
                     </div>
                 </div>
             `;
-            document.body.appendChild(statusBar);
             
-            // Ana içeriğe padding ekle
-            document.querySelector('.container').style.paddingTop = '60px';
+            // Hero section'dan önce ekle
+            const heroSection = container.querySelector('.hero');
+            container.insertBefore(statusBar, heroSection);
             
             updatePWAStatusBar();
         }
@@ -1401,17 +1400,14 @@
             details.id = 'pwa-details';
             details.innerHTML = `
                 <div style="
-                    position: fixed;
-                    top: 45px;
-                    left: 16px;
-                    right: 16px;
                     background: rgba(0, 0, 0, 0.95);
                     border: 1px solid rgba(255, 255, 255, 0.2);
-                    border-radius: 8px;
-                    padding: 12px;
-                    z-index: 1999;
+                    border-radius: 12px;
+                    padding: 16px;
+                    margin-top: 10px;
                     color: white;
                     font-size: 12px;
+                    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
                 ">
                     <div style="margin-bottom: 8px;">
                         <strong>📱 Ana Ekran:</strong> ${window.matchMedia('(display-mode: standalone)').matches ? '✅ Kurulu' : '❌ Kurulu değil'}
@@ -1427,6 +1423,10 @@
                     </div>
                     <div style="margin-bottom: 8px;">
                         <strong>📱 User Agent:</strong> ${navigator.userAgent.substring(0, 50)}...
+                    </div>
+                    <div style="margin-bottom: 8px; background: rgba(0,255,0,0.1); padding: 8px; border-radius: 4px;" id="console-output">
+                        <strong>🔍 Test Sonuçları:</strong><br>
+                        <span id="test-results" style="font-family: monospace; font-size: 10px;">Henüz test yapılmadı</span>
                     </div>
                     <button onclick="testNotification()" style="
                         background: rgba(0, 255, 136, 0.2);
@@ -1449,19 +1449,85 @@
                     ">Kapat</button>
                 </div>
             `;
-            document.body.appendChild(details);
+            
+            // Status bar'ın altına ekle
+            const statusBar = document.getElementById('pwa-status-bar');
+            if (statusBar) {
+                statusBar.appendChild(details);
+            } else {
+                document.body.appendChild(details);
+            }
             detailsVisible = true;
         }
 
         window.testNotification = function() {
-            if (Notification.permission === 'granted') {
-                new Notification('🎮 Test Bildirimi', {
-                    body: 'Bildirimler çalışıyor!',
-                    icon: '/oyun-durumum/icon-192.png'
+            const resultSpan = document.getElementById('test-results');
+            let results = [];
+            
+            results.push('🔍 Test başlatıldı...');
+            results.push('📱 Mobil: ' + (/Mobi|Android/i.test(navigator.userAgent) ? 'Evet' : 'Hayır'));
+            results.push('📊 PWA: ' + (window.matchMedia('(display-mode: standalone)').matches ? 'Evet' : 'Hayır'));
+            results.push('🔔 İzin: ' + Notification.permission);
+            
+            if (resultSpan) {
+                resultSpan.innerHTML = results.join('<br>');
+            }
+            
+            console.log('Test notification clicked');
+            console.log('Permission:', Notification.permission);
+            console.log('Is mobile:', /Mobi|Android/i.test(navigator.userAgent));
+            console.log('Is PWA:', window.matchMedia('(display-mode: standalone)').matches);
+            
+            if (Notification.permission !== 'granted') {
+                results.push('❌ İzin gerekli - Bildirim butonuna bas');
+                if (resultSpan) resultSpan.innerHTML = results.join('<br>');
+                showNotification('❌ Bildirim izni gerekli - önce "Bildirim" butonuna bas');
+                return;
+            }
+            
+            try {
+                // Browser native notification
+                const notification = new Notification('🎮 Test Bildirimi', {
+                    body: 'Native bildirim çalışıyor!',
+                    icon: '/oyun-durumum/icon-192.png',
+                    tag: 'test-notification',
+                    requireInteraction: true,
+                    silent: false
                 });
-                showNotification('✅ Test bildirimi gönderildi');
-            } else {
-                showNotification('❌ Bildirim izni gerekli');
+                
+                notification.onclick = function() {
+                    window.focus();
+                    notification.close();
+                };
+                
+                results.push('✅ Native test gönderildi');
+                showNotification('✅ Native test bildirimi gönderildi');
+                
+                // OneSignal test de ekle
+                if (typeof OneSignal !== 'undefined') {
+                    OneSignal.push(() => {
+                        OneSignal.sendSelfNotification(
+                            '🔥 OneSignal Test',
+                            'OneSignal bildirimi çalışıyor!',
+                            'https://onesignal.com',
+                            '/oyun-durumum/icon-192.png'
+                        );
+                    });
+                    results.push('✅ OneSignal test gönderildi');
+                    showNotification('✅ OneSignal test de gönderildi');
+                } else {
+                    results.push('❌ OneSignal yüklenemedi');
+                }
+                
+            } catch (error) {
+                console.error('Notification error:', error);
+                results.push('❌ Hata: ' + error.message);
+                showNotification('❌ Bildirim hatası: ' + error.message);
+            }
+            
+            // Sonuçları güncelle
+            if (resultSpan) {
+                resultSpan.innerHTML = results.join('<br>');
             }
         }
 
